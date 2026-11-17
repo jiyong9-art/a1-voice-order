@@ -38,6 +38,79 @@ export interface CallSummaryResult {
   raw_transcript: string;
 }
 
+/* ------------------------------------------------------------------ */
+/* 영업 오더 초안 (Sales 앱 ← /api/sales/voice)                          */
+/* ------------------------------------------------------------------ */
+
+export const SALES_INTENTS = ["견적", "계약", "배서", "해지", "사고접수"] as const;
+export type SalesIntent = (typeof SALES_INTENTS)[number];
+
+export interface SalesCustomer {
+  name: string;
+  /** 사업자등록번호 (예: 123-45-67890) */
+  biz_no: string;
+  phone: string;
+  address: string;
+  ceo_name: string;
+  /** 서류에서 읽은 경우: 사업자등록증 | 차량등록증 | 신분증 | "" */
+  doc_type: string;
+}
+
+export interface SalesBasis {
+  /** 건설기계 등록번호 */
+  car_no: string;
+  /** 기종 (지게차·굴착기 등) */
+  kind: string;
+  /** 가입금액(만원) */
+  amount_man: string;
+  /** 건물 구조 */
+  structure: string;
+  /** 적하 인보이스 금액(USD) */
+  usd: string;
+  /** 적하 출발지 */
+  from: string;
+  /** 적하 도착지 */
+  to: string;
+  /** 사고일시 YYYY-MM-DD */
+  accident_date: string;
+  accident_place: string;
+  accident_desc: string;
+  free_text: string;
+}
+
+export interface SalesOrderDraft {
+  intent: SalesIntent;
+  customer: SalesCustomer;
+  /** 보험 상품명 (자동차·화재·배상·건설기계·근재·적하·기타) */
+  product: string;
+  /** 보험사명 (자유 텍스트) */
+  insurer: string;
+  /** 구분 (신규·갱신·배서·해지·사고 등) */
+  gu: string;
+  /** 목적물/차량번호/현장 */
+  obj: string;
+  /** YYYY-MM-DD */
+  start_date: string;
+  /** YYYY-MM-DD */
+  end_date: string;
+  short_term: boolean;
+  basis: SalesBasis;
+  memo: string;
+  /** 빠진 필수 산출기초 항목명 (예: ["차량번호", "보험기간"]) */
+  missing: string[];
+}
+
+export interface SalesVoiceResponse {
+  ok: boolean;
+  /** 전사/입력 원문(이미지면 읽은 핵심 요약) */
+  transcript: string;
+  draft?: SalesOrderDraft;
+  /** 가린 개인정보 등 안내 */
+  warnings?: string[];
+  engine?: { stt: string; model: string; mocked?: boolean };
+  error?: string;
+}
+
 export interface SessionUser {
   name: string;
   exp: number;

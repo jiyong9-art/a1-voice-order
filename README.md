@@ -317,3 +317,46 @@ Vercel 서버리스 함수는 **요청 본문 4.5MB**까지만 받습니다. 그
    - (직접) **서비스 계정 JSON** (위 3-2 단계) + `GOOGLE_SPREADSHEET_ID` — 시트에 편집자 공유
 4. **팀 비밀번호** 정하기 (`APP_PASSCODE`) + **관리자 비밀번호**(`ADMIN_PASSCODE`, 직원 추가·삭제용 — 비워 두면 팀 비밀번호로 대체)
 5. (선택) 메일: Resend 키 또는 회사 메일 SMTP 정보, 대표 수신 메일 `NOTIFY_EMAIL`
+
+---
+
+## 14. 영업 AI 통합 API — `POST /api/sales/voice`
+
+Sales 앱(`https://jiyong9-art.github.io`)이 호출하는 영업 AI 브리지입니다. 음성 전사·텍스트 정리·서류 사진 판독을 **한 번의 호출**로 처리해 `SalesOrderDraft`를 돌려줍니다.
+
+| 항목 | 내용 |
+| --- | --- |
+| 인증 | 로그인 세션 쿠키(`inu_session`) **또는** 헤더 `x-a1-passcode: <APP_PASSCODE>` (타이밍 안전 비교) |
+| CORS | `https://jiyong9-art.github.io`, `https://a1-voice-order.vercel.app`, `http://localhost:*`·`http://127.0.0.1:*` / `OPTIONS` 프리플라이트는 204, 허용 외 출처는 403 |
+| 요청 | `multipart/form-data` 또는 `application/json` — `audio`(≤24MB) · `text` · `image`(서류 사진 ≤10MB) · `customers`(`[{id,name,bizNo}]` JSON 문자열, 이름 매칭 보조) |
+| 레이트 리밋 | IP당 시간당 40회 |
+| 응답 | `{ ok, transcript, draft, warnings?, engine }` — `draft`는 `intent·customer·product·insurer·gu·obj·start_date·end_date·short_term·basis·memo·missing` |
+| 모의 모드 | `MOCK_AI=true`면 OpenAI 없이 규칙 기반 초안을 돌려줍니다(스모크 테스트·시연용) |
+
+**개인정보**
+- 업로드 파일은 메모리에서만 처리하고 디스크에 저장하지 않으며 응답 후 폐기합니다.
+- 평문·전사·서류 판독·최종 초안 모든 단계에서 주민등록번호 13자리(→ `900101-1******`)와 카드번호 16자리(→ `1234-****-****-3456`)를 자동으로 가립니다. 가린 사실은 `warnings`로 알려 줍니다.
+
+**필수 산출기초 기준 (`missing` 계산 근거)**
+
+| 구분 | 항목 |
+| --- | --- |
+| 자동차/건설기계 | 차량번호(차대번호), 차종/톤수, 운전자범위·연령, 대물한도, 자차여부 |
+| 화재/재산종합 | 소재지, 업종, 건물구조(급수·판넬여부), 면적(평/㎡), 가입금액(건물·집기·재고) |
+| 배상책임 | 업종/작업내용, 산출기초(연매출액/면적/공사금액/좌석수), 보상한도, 자기부담금 |
+| 근재 | 업종/공사명, 연간임금총액(또는 공사금액), 인원수, 보상한도 |
+| 적하/운송 | 화물품목, 출발지→도착지, 운송수단, 가입금액(통화/USD/KRW), 조건(CIF/FOB) |
+| 배서 | 대상증권, 변경일, 변경항목 |
+| 해지 | 대상증권, 해지일, 사유 |
+| 사고접수 | 사고일시, 사고장소, 사고경위, 피해대상 |
+
+이 표는 `lib/sales-ai.ts`의 한 곳에 정의되어 **OpenAI 시스템 프롬프트와 `draft.missing` 계산에 동시에** 쓰입니다(둘이 어긋나지 않음). 전용 칸이 없는 항목은 `basis.free_text`에 `항목: 값` 형태로 담깁니다.
+
+예시:
+
+```bash
+curl -X POST https://a1-voice-order.vercel.app/api/sales/voice \
+  -H 'Content-Type: application/json' \
+  -H 'x-a1-passcode: <APP_PASSCODE>' \
+  -d '{"text":"삼성화재 지게차 신규 견적, 고객은 다온기계, 004가1234, 5억, 2026-12-01부터 1년"}'
+```

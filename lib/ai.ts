@@ -5,7 +5,7 @@ import { PRIORITIES, todayInSeoul } from "@/lib/types";
 
 let client: OpenAI | null = null;
 
-function openai(): OpenAI {
+export function openai(): OpenAI {
   const c = appConfig();
   if (!c.openaiKey) {
     throw new Error("OPENAI_API_KEY is not configured");
@@ -58,7 +58,7 @@ export function normalizeAudioFile(file: File): { file: File; ext: string } {
 
 export async function transcribeAudio(
   file: File,
-  opts: { mode: "order" | "call_summary" },
+  opts: { mode: "order" | "call_summary" | "sales" },
 ): Promise<{ text: string; model: string; mocked?: boolean }> {
   const { file: normalized } = normalizeAudioFile(file);
 
@@ -67,7 +67,9 @@ export async function transcribeAudio(
       text:
         opts.mode === "order"
           ? "(모의 변환) 문지용 사장님, 내일 오전까지 거래처 에이원코리아 견적서 수정본 보내고, 급하면 카톡으로도 알려줘."
-          : "(모의 변환) 안녕하세요 에이원코리아입니다. 아 네 대표님, 저 보험설계사 김민수라고 합니다. 다음 주 화요일 오후 2시에 상담 가능하실까요? 네 그럼 화요일 2시로 잡아주시고, 견적서는 금요일까지 메일로 보내주세요. 네 감사합니다.",
+          : opts.mode === "sales"
+            ? "(모의 변환) 삼성화재 건설기계 지게차 한 대 신규 견적 부탁드립니다. 차량번호 004가1234이고 가입금액은 5억, 다음 달 1일부터 1년입니다. 고객은 다온기계입니다."
+            : "(모의 변환) 안녕하세요 에이원코리아입니다. 아 네 대표님, 저 보험설계사 김민수라고 합니다. 다음 주 화요일 오후 2시에 상담 가능하실까요? 네 그럼 화요일 2시로 잡아주시고, 견적서는 금요일까지 메일로 보내주세요. 네 감사합니다.",
       model: "mock",
       mocked: true,
     };
@@ -189,7 +191,7 @@ function asStringArray(value: unknown): string[] {
   return s ? s.split(/\n|;\s*/).map((v) => v.trim()).filter(Boolean) : [];
 }
 
-function parseJsonLoose(content: string): unknown {
+export function parseJsonLoose(content: string): unknown {
   try {
     return JSON.parse(content);
   } catch {
@@ -206,7 +208,7 @@ function parseJsonLoose(content: string): unknown {
   }
 }
 
-async function chatJson(
+export async function chatJson(
   system: string,
   user: string,
   schemaName: string,
