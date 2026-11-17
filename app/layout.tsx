@@ -3,7 +3,7 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "에이원 업무 오더",
-  description: "에이원코리아(A1) 사내 음성 업무 오더 · 통화 녹음 핵심 요약",
+  description: "에이원코리아(A1KOREA) 사내 음성 업무 오더 · 통화 녹음 핵심 요약",
   applicationName: "에이원 업무 오더",
   manifest: "/manifest.json",
   appleWebApp: {
@@ -15,7 +15,6 @@ export const metadata: Metadata = {
     icon: [
       { url: "/icons/icon-192.png", sizes: "192x192", type: "image/png" },
       { url: "/icons/icon-512.png", sizes: "512x512", type: "image/png" },
-      { url: "/favicon.svg", type: "image/svg+xml" },
     ],
     apple: [{ url: "/icons/apple-touch-icon.png", sizes: "180x180", type: "image/png" }],
   },
@@ -28,7 +27,7 @@ export const viewport: Viewport = {
   initialScale: 1,
   maximumScale: 1,
   viewportFit: "cover",
-  themeColor: "#4f46e5",
+  themeColor: "#003a84",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

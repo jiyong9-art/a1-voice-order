@@ -89,11 +89,11 @@ bash scripts/smoke-test.sh   # 로그인·API 전 구간 자동 점검 (모의 �
 > 기본 팀원은 **문지용 · 이광훈 · 송현준 · 백남우 · 김남국 · 한원석 · 차정호 · 유병은** 8명입니다. (`TEAM_MEMBERS`를 비워 두면 이 8명이 로그인 화면 선택지와 담당자 매칭에 쓰입니다. 인원이 바뀌면 `TEAM_MEMBERS`에 쉼표로 이어 붙이세요.)
 
 ### 3-2. 서비스 계정 키 만들기
-1. https://console.cloud.google.com → 새 프로젝트 생성 (예: `inu-order`)
+1. https://console.cloud.google.com → 새 프로젝트 생성 (예: `a1-voice-order`)
 2. **API 및 서비스 → 라이브러리** → `Google Sheets API` → 사용 설정
 3. **API 및 서비스 → 사용자 인증 정보 → 사용자 인증 정보 만들기 → 서비스 계정** → 이름 입력 후 생성
 4. 생성된 서비스 계정 → **키 → 키 추가 → JSON** → 다운로드 (파일은 절대 공개 금지)
-5. 다운로드한 JSON 안의 `client_email`(예: `inu-order@inu-order.iam.gserviceaccount.com`)을 복사
+5. 다운로드한 JSON 안의 `client_email`(예: `a1-voice-order@a1-voice-order.iam.gserviceaccount.com`)을 복사
 6. 스프레드시트 우측 상단 **공유** → 그 이메일을 **편집자**로 추가
 
 ### 3-3. 값 넣기
@@ -119,7 +119,7 @@ bash scripts/smoke-test.sh   # 로그인·API 전 구간 자동 점검 (모의 �
 **A. Resend (가장 빠름)**
 1. https://resend.com 가입 → API Keys → `re_...` 생성
 2. `RESEND_API_KEY`에 입력, `MAIL_FROM`은 도메인 인증 전이면 `에이원 업무오더 <onboarding@resend.dev>` 사용
-   (도메인 인증 전에는 **계정 소유자 메일로만** 발송됩니다. `inu.ai.kr` 도메인 인증 후 `order@inu.ai.kr`로 변경)
+   (도메인 인증 전에는 **계정 소유자 메일로만** 발송됩니다. `a1korea.co.kr` 도메인 인증 후 `order@a1korea.co.kr`로 변경)
 
 **B. SMTP (회사 메일 그대로)**
 - 네이버: `smtp.naver.com` / 587 / 아이디 / **애플리케이션 비밀번호**
@@ -134,8 +134,8 @@ bash scripts/smoke-test.sh   # 로그인·API 전 구간 자동 점검 (모의 �
 2. 이 폴더를 GitHub 저장소로 올린 뒤 **Add New → Project → Import**
    - Framework Preset: **Next.js** (자동 감지) · Build Command/Output 기본값 그대로
 3. **Environment Variables**에 2번 표의 값을 등록 (Production / Preview 모두)
-4. **Deploy** → `https://inu-order.vercel.app` 같은 주소가 나옵니다.
-5. (선택) 도메인 연결: **Settings → Domains → `order.inu.ai.kr` 추가** 후 DNS CNAME 등록
+4. **Deploy** → `https://a1-voice-order.vercel.app` 같은 주소가 나옵니다.
+5. (선택) 도메인 연결: **Settings → Domains → `order.a1korea.co.kr` 추가** 후 DNS CNAME 등록
 
 > Git 없이 배포하려면 `npx vercel` CLI로도 가능합니다. 어느 쪽이든 **서비스 계정 JSON과 OpenAI 키는 저장소에 절대 커밋하지 마세요.** (`.gitignore`에 `.env*` 포함되어 있음)
 
@@ -237,7 +237,7 @@ Vercel 서버리스 함수는 **요청 본문 4.5MB**까지만 받습니다. 그
 이 앱은 가이드의 **프로젝트 1**입니다. 같은 구조 위에 프로젝트 2(AI 인바운드 콜센터)를 얹을 수 있습니다.
 
 1. RAG 문서 4종 작성: `01_회사_및_서비스_소개.md`, `02_자주묻는질문_FAQ.md`, `03_필수수집정보.md`, `04_금지규칙.md`
-2. `inu.ai.kr` 우측 하단 `[🎤 AI 음성 상담]` 위젯 → 이 앱의 `/api/transcribe` · `/api/structure` 패턴 재사용
+2. `a1korea.co.kr` 우측 하단 `[🎤 AI 음성 상담]` 위젯 → 이 앱의 `/api/transcribe` · `/api/structure` 패턴 재사용
 3. 안전장치: 1회 3분 제한, IP별 일일 횟수 제한, 실시간 자막
 4. 전화(인바운드) 확장: Twilio 또는 국내 클라우드 전화 API + 발신번호 사전등록
 

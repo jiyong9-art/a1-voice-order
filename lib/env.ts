@@ -41,7 +41,7 @@ export function appConfig() {
 }
 
 export const DEFAULT_VOCABULARY =
-  "에이원코리아, A1, 에이원, 에이팩스미디어, 인유, 문지용, 이광훈, 송현준, 백남우, 김남국, 한원석, 차정호, 유병은, 보험, 설계사, 약관, 후유장해, 고객, 상담, 녹취, 업무오더";
+  "에이원코리아, A1, 에이원, 에이팩스미디어, A1KOREA, 문지용, 이광훈, 송현준, 백남우, 김남국, 한원석, 차정호, 유병은, 보험, 설계사, 약관, 후유장해, 고객, 상담, 녹취, 업무오더";
 
 export function vocabularyPrompt(): string {
   const extra = appConfig().vocabulary;

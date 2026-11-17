@@ -2,8 +2,8 @@
    - 앱 셸(아이콘·매니페스트)만 캐시합니다.
    - 페이지와 API 응답은 항상 네트워크를 우선합니다. (로그인/시트 데이터 보호)
 */
-const CACHE = "inu-shell-v1";
-const SHELL = ["/manifest.json", "/icons/icon-192.png", "/icons/icon-512.png", "/favicon.svg"];
+const CACHE = "a1-shell-v2";
+const SHELL = ["/manifest.json", "/icons/icon-192.png", "/icons/icon-512.png", "/icons/maskable-512.png"];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(

@@ -11,7 +11,7 @@ function secret(): string {
   const c = appConfig();
   // APP_SESSION_SECRET이 없으면 팀 비밀번호를 서명 키로 사용합니다.
   // (비밀번호를 바꾸면 기존 로그인이 모두 풀립니다.)
-  return c.sessionSecret || c.passcode || "inu-dev-only-secret";
+  return c.sessionSecret || c.passcode || "a1-dev-only-secret";
 }
 
 function b64url(input: Buffer | string): string {

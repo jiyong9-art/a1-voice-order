@@ -151,7 +151,7 @@ export default function Composer({
           {recording ? (
             <div className="flex flex-1 items-center gap-2.5 rounded-full bg-red-50 px-3.5 py-2 text-red-600">
               <span className="relative flex h-2.5 w-2.5 items-center justify-center">
-                <span className="inu-ping absolute inset-0 rounded-full bg-red-500/40" />
+                <span className="a1-ping absolute inset-0 rounded-full bg-red-500/40" />
                 <span className="h-2 w-2 rounded-full bg-red-500" />
               </span>
               <span className="text-[12.5px] font-semibold">듣고 있어요 · {mmss}</span>
@@ -159,7 +159,7 @@ export default function Composer({
                 {[0, 1, 2, 3, 4].map((i) => (
                   <span
                     key={i}
-                    className="inu-bar h-3 w-[3px] rounded-full bg-red-400"
+                    className="a1-bar h-3 w-[3px] rounded-full bg-red-400"
                     style={{ animationDelay: `${i * 0.12}s` }}
                   />
                 ))}

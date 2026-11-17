@@ -30,7 +30,7 @@ export default function OrderCard({
   const update = (patch: Partial<OrderResult>) => setForm((prev) => ({ ...prev, ...patch }));
 
   return (
-    <div className="inu-fade-up overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-[0_8px_28px_-18px_rgba(15,23,42,0.35)]">
+    <div className="a1-fade-up overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-[0_8px_28px_-18px_rgba(15,23,42,0.35)]">
       <div className="flex items-center gap-2 border-b border-slate-100 bg-gradient-to-r from-indigo-50/80 to-white px-4 py-2.5">
         <span className="rounded-full bg-indigo-600 px-2 py-0.5 text-[10.5px] font-bold tracking-wide text-white">업무 오더</span>
         <span className={`rounded-full px-2 py-0.5 text-[10.5px] font-bold ring-1 ${priorityTone(form.priority)}`}>

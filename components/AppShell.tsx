@@ -1,8 +1,10 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+import Image from "next/image";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { CallSummaryResult, Mode, OrderResult, SubmitResponse } from "@/lib/types";
+import logoWide from "@/public/logo-a1-wide.png";
 import CallSummaryCard from "./CallSummaryCard";
 import Composer from "./Composer";
 import OrderCard, { type SubmitState } from "./OrderCard";
@@ -282,15 +284,20 @@ export default function AppShell({
   return (
     <div className="mx-auto flex h-dvh w-full max-w-md flex-col bg-white/40">
       <header className="sticky top-0 z-20 border-b border-slate-200/80 bg-white/90 backdrop-blur-md">
-        <div className="flex items-center gap-2.5 px-4 py-3">
-          <div className="flex h-9 w-9 items-center justify-center rounded-2xl bg-gradient-to-br from-indigo-500 to-violet-600 text-[13px] font-black text-white shadow-sm shadow-indigo-200">
-            i&amp;u
+        <div className="flex items-center gap-2 px-4 py-2.5">
+          <Image
+            src={logoWide}
+            alt="에이원코리아 A1KOREA"
+            priority
+            className="h-7 w-auto shrink-0"
+          />
+          <div className="min-w-0 border-l border-slate-200 pl-2.5">
+            <h1 className="truncate text-[13.5px] font-bold leading-4 tracking-tight text-slate-900">
+              음성 업무 오더
+            </h1>
+            <p className="truncate text-[10.5px] leading-4 text-slate-400">시트·메일 자동 정리</p>
           </div>
-          <div className="min-w-0">
-            <h1 className="truncate text-[15px] font-bold tracking-tight text-slate-900">음성 업무 오더</h1>
-            <p className="truncate text-[11px] text-slate-400">말로 지시 → 시트·메일 자동 정리</p>
-          </div>
-          <div className="relative ml-auto">
+          <div className="relative ml-auto shrink-0">
             {menuOpen && (
               <button
                 type="button"
@@ -374,7 +381,7 @@ export default function AppShell({
         </div>
       )}
 
-      <main className="inu-scroll flex-1 overflow-y-auto px-3.5 py-4">
+      <main className="a1-scroll flex-1 overflow-y-auto px-3.5 py-4">
         {messages.length === 0 && phase === "idle" && (
           <div className="mt-6 text-center">
             <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-indigo-50 text-indigo-500">
@@ -406,7 +413,7 @@ export default function AppShell({
           {messages.map((message) => {
             if (message.kind === "text") {
               return (
-                <div key={message.id} className="inu-fade-up flex justify-end">
+                <div key={message.id} className="a1-fade-up flex justify-end">
                   <div className="max-w-[85%]">
                     <div className="max-h-52 overflow-y-auto whitespace-pre-wrap break-words rounded-3xl rounded-br-lg bg-indigo-600 px-3.5 py-2.5 text-[14px] leading-6 text-white shadow-sm shadow-indigo-200">
                       {message.text}
@@ -419,7 +426,7 @@ export default function AppShell({
 
             if (message.kind === "info") {
               return (
-                <div key={message.id} className="inu-fade-up flex justify-start">
+                <div key={message.id} className="a1-fade-up flex justify-start">
                   <div
                     className={`flex max-w-[85%] items-start gap-2 rounded-3xl rounded-bl-lg px-3.5 py-2.5 text-[12.5px] leading-5 ${
                       message.tone === "error"
@@ -479,7 +486,7 @@ export default function AppShell({
       {toast && (
         <div className="pointer-events-none fixed inset-x-0 bottom-28 z-30 flex justify-center px-6">
           <div
-            className={`inu-fade-up flex max-w-sm items-start gap-2 rounded-2xl px-3.5 py-2.5 text-[12.5px] font-medium shadow-lg ${
+            className={`a1-fade-up flex max-w-sm items-start gap-2 rounded-2xl px-3.5 py-2.5 text-[12.5px] font-medium shadow-lg ${
               toast.tone === "error"
                 ? "bg-red-600 text-white"
                 : toast.tone === "warn"

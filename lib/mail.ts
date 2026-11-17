@@ -78,7 +78,7 @@ function escapeHtml(value: string): string {
 
 function shell(title: string, body: string): string {
   return `<div style="font-family:-apple-system,'Apple SD Gothic Neo','Malgun Gothic',sans-serif;max-width:560px;margin:0 auto;padding:24px;color:#0f172a">
-  <p style="margin:0 0 4px;font-size:12px;letter-spacing:.08em;color:#6366f1;font-weight:700">i&amp;u 업무오더</p>
+  <p style="margin:0 0 4px;font-size:12px;letter-spacing:.08em;color:#003a84;font-weight:700">에이원코리아 업무오더</p>
   <h1 style="margin:0 0 16px;font-size:20px">${escapeHtml(title)}</h1>
   ${body}
   <p style="margin-top:24px;font-size:12px;color:#94a3b8">에이원코리아 업무 오더 웹앱에서 자동 발송된 메일입니다.</p>

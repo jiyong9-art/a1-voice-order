@@ -53,7 +53,7 @@ export default function CallSummaryCard({
   }
 
   return (
-    <div className="inu-fade-up overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-[0_8px_28px_-18px_rgba(15,23,42,0.35)]">
+    <div className="a1-fade-up overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-[0_8px_28px_-18px_rgba(15,23,42,0.35)]">
       <div className="flex items-center gap-2 border-b border-slate-100 bg-gradient-to-r from-teal-50/80 to-white px-4 py-2.5">
         <span className="rounded-full bg-teal-600 px-2 py-0.5 text-[10.5px] font-bold tracking-wide text-white">통화 요약</span>
         <span className="truncate text-[12.5px] font-semibold text-slate-600">{form.customer_name} 고객</span>

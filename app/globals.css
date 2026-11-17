@@ -31,7 +31,7 @@ body {
 }
 
 /* 녹음 중 파형 */
-@keyframes inu-bar {
+@keyframes a1-bar {
   0%,
   100% {
     transform: scaleY(0.35);
@@ -42,12 +42,12 @@ body {
     opacity: 1;
   }
 }
-.inu-bar {
-  animation: inu-bar 0.9s ease-in-out infinite;
+.a1-bar {
+  animation: a1-bar 0.9s ease-in-out infinite;
   transform-origin: center;
 }
 
-@keyframes inu-fade-up {
+@keyframes a1-fade-up {
   from {
     opacity: 0;
     transform: translateY(6px);
@@ -57,11 +57,11 @@ body {
     transform: translateY(0);
   }
 }
-.inu-fade-up {
-  animation: inu-fade-up 0.22s ease-out both;
+.a1-fade-up {
+  animation: a1-fade-up 0.22s ease-out both;
 }
 
-@keyframes inu-ping {
+@keyframes a1-ping {
   0% {
     transform: scale(0.9);
     opacity: 0.55;
@@ -72,20 +72,20 @@ body {
     opacity: 0;
   }
 }
-.inu-ping::after {
+.a1-ping::after {
   content: "";
   position: absolute;
   inset: 0;
   border-radius: 9999px;
   background: rgba(239, 68, 68, 0.35);
-  animation: inu-ping 1.4s cubic-bezier(0, 0, 0.2, 1) infinite;
+  animation: a1-ping 1.4s cubic-bezier(0, 0, 0.2, 1) infinite;
 }
 
 /* 스크롤바 정리 */
-.inu-scroll::-webkit-scrollbar {
+.a1-scroll::-webkit-scrollbar {
   width: 6px;
 }
-.inu-scroll::-webkit-scrollbar-thumb {
+.a1-scroll::-webkit-scrollbar-thumb {
   background: #cbd5e1;
   border-radius: 999px;
 }

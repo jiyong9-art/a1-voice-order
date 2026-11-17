@@ -1,7 +1,7 @@
 {
   "name": "에이원 업무 오더",
   "short_name": "에이원 오더",
-  "description": "에이원코리아(A1) 사내 음성 업무 오더 · 통화 녹음 핵심 요약",
+  "description": "에이원코리아(A1KOREA) 사내 음성 업무 오더 · 통화 녹음 핵심 요약",
   "lang": "ko",
   "dir": "ltr",
   "start_url": "/",
@@ -10,7 +10,7 @@
   "display_override": ["standalone", "minimal-ui"],
   "orientation": "portrait",
   "background_color": "#f8fafc",
-  "theme_color": "#4f46e5",
+  "theme_color": "#003a84",
   "categories": ["business", "productivity"],
   "icons": [
     {

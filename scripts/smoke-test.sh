@@ -6,7 +6,7 @@ BASE="http://127.0.0.1:${PORT}"
 JAR="$(mktemp)"
 LOG="$(mktemp)"
 
-export APP_PASSCODE="inu-test-2026"
+export APP_PASSCODE="a1-test-2026"
 export MOCK_AI="true"
 export TEAM_MEMBERS="문지용,이광훈,송현준,백남우,김남국,한원석,차정호,유병은"
 unset OPENAI_API_KEY GOOGLE_SERVICE_ACCOUNT_JSON GOOGLE_SPREADSHEET_ID RESEND_API_KEY SMTP_HOST
@@ -29,7 +29,7 @@ curl -s -o /dev/null -w "POST login(wrong) -> %{http_code}\n" -X POST "$BASE/api
 
 echo "== 3) 정상 로그인"
 curl -s -c "$JAR" -X POST "$BASE/api/auth/login" -H 'Content-Type: application/json' \
-  -d '{"name":"문지용","passcode":"inu-test-2026"}'; echo
+  -d '{"name":"문지용","passcode":"a1-test-2026"}'; echo
 
 echo "== 4) 로그인 후 메인 페이지"
 curl -s -b "$JAR" -o /dev/null -w "GET / -> %{http_code}\n" "$BASE/"
