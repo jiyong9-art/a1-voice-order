@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import { getSession, safeEqual } from "@/lib/auth";
-import { appConfig } from "@/lib/env";
+import { safeEqual } from "@/lib/auth";
+import { adminPasscode, adminPasscodeDedicated } from "@/lib/env";
 import { addMember, listMembers, removeMember, type MembersState } from "@/lib/members";
 import { clientIp, rateLimit } from "@/lib/rate-limit";
 
@@ -9,6 +9,9 @@ export const dynamic = "force-dynamic";
 
 interface Body {
   name?: unknown;
+  /** 관리자 비밀번호 (ADMIN_PASSCODE) */
+  adminPasscode?: unknown;
+  /** 예전 이름 — adminPasscode가 없을 때만 참고합니다. */
   passcode?: unknown;
 }
 
@@ -35,29 +38,36 @@ function statePayload(state: MembersState) {
   };
 }
 
-/** 로그인 세션 또는 요청 body의 팀 비밀번호로 확인합니다. */
-async function authorize(
-  request: Request,
-  body: Body,
-): Promise<{ ok: true; via: "session" | "passcode" } | { ok: false; response: NextResponse }> {
-  const session = await getSession();
-  if (session) return { ok: true, via: "session" };
-
-  const passcode = appConfig().passcode;
-  if (!passcode) {
+/**
+ * 직원 추가·삭제는 관리자 전용입니다.
+ * ADMIN_PASSCODE가 설정돼 있으면 그 값만 인정하고(로그인 세션만으로는 불가),
+ * 설정돼 있지 않을 때만 APP_PASSCODE로 대신합니다.
+ */
+async function authorizeAdmin(body: Body): Promise<{ ok: true } | { ok: false; response: NextResponse }> {
+  const expected = adminPasscode();
+  if (!expected) {
     return {
       ok: false,
       response: NextResponse.json(
-        { ok: false, error: "팀 비밀번호(APP_PASSCODE)가 설정되지 않아 직원 목록을 변경할 수 없습니다." },
+        { ok: false, error: "관리자 비밀번호(ADMIN_PASSCODE)가 설정되지 않아 직원 목록을 변경할 수 없습니다." },
         { status: 500 },
       ),
     };
   }
-  if (safeEqual(text(body.passcode).trim(), passcode)) return { ok: true, via: "passcode" };
+
+  const input = (text(body.adminPasscode) || text(body.passcode)).trim();
+  if (input && safeEqual(input, expected)) return { ok: true };
 
   return {
     ok: false,
-    response: NextResponse.json({ ok: false, error: "팀 비밀번호가 맞지 않습니다." }, { status: 401 }),
+    response: NextResponse.json(
+      {
+        ok: false,
+        error: "관리자 비밀번호가 맞지 않습니다. 직원 추가·삭제는 관리자만 할 수 있습니다.",
+        adminRequired: true,
+      },
+      { status: 401 },
+    ),
   };
 }
 
@@ -74,7 +84,7 @@ export async function GET(request: Request) {
   try {
     const state = await listMembers();
     return NextResponse.json(
-      { ok: true, ...statePayload(state) },
+      { ok: true, ...statePayload(state), adminConfigured: adminPasscodeDedicated() },
       { headers: { "Cache-Control": "no-store" } },
     );
   } catch (err) {
@@ -97,7 +107,7 @@ export async function POST(request: Request) {
     );
   }
 
-  const auth = await authorize(request, body);
+  const auth = await authorizeAdmin(body);
   if (!auth.ok) return auth.response;
 
   const name = text(body.name).trim();
@@ -105,7 +115,7 @@ export async function POST(request: Request) {
   // passcode 확인만 요청한 경우
   if (!name) {
     const state = await listMembers();
-    return NextResponse.json({ ok: true, verified: true, ...statePayload(state) });
+    return NextResponse.json({ ok: true, verified: true, ...statePayload(state), adminConfigured: adminPasscodeDedicated() });
   }
 
   try {
@@ -138,7 +148,7 @@ export async function DELETE(request: Request) {
     );
   }
 
-  const auth = await authorize(request, body);
+  const auth = await authorizeAdmin(body);
   if (!auth.ok) return auth.response;
 
   const name = text(body.name).trim();

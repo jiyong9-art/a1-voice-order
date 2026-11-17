@@ -15,6 +15,7 @@ export function isSet(name: string): boolean {
 export function appConfig() {
   return {
     passcode: readEnv("APP_PASSCODE"),
+    adminPasscode: readEnv("ADMIN_PASSCODE"),
     teamMembers: readEnv("TEAM_MEMBERS")
       .split(",")
       .map((s) => s.trim())
@@ -90,6 +91,20 @@ export function sheetsConfigured(): boolean {
 export function mailConfigured(): boolean {
   const c = appConfig();
   return Boolean(c.resendKey || (c.smtpHost && c.smtpUser && c.smtpPass));
+}
+
+/**
+ * 직원 추가·삭제 권한 — 관리자 전용 비밀번호.
+ * ADMIN_PASSCODE가 있으면 그것만 인정하고, 없을 때만 APP_PASSCODE로 대신합니다(안전한 fallback).
+ */
+export function adminPasscode(): string {
+  const c = appConfig();
+  return c.adminPasscode || c.passcode;
+}
+
+/** 관리자 전용 비밀번호가 따로 설정되어 있는지 */
+export function adminPasscodeDedicated(): boolean {
+  return isSet("ADMIN_PASSCODE");
 }
 
 export function sheetsUrl(): string | null {

@@ -171,6 +171,43 @@ export function CloseIcon(props: IconProps) {
   );
 }
 
+export function DeviceIcon(props: IconProps) {
+  return (
+    <svg {...base} {...props}>
+      <rect x="6.5" y="2.5" width="11" height="19" rx="2.6" />
+      <path d="M10.5 18.5h3" />
+    </svg>
+  );
+}
+
+export function DownloadIcon(props: IconProps) {
+  return (
+    <svg {...base} {...props}>
+      <path d="M12 4v10.5" />
+      <path d="m7.8 10.5 4.2 4.2 4.2-4.2" />
+      <path d="M4.8 18.8h14.4" />
+    </svg>
+  );
+}
+
+export function DriveIcon(props: IconProps) {
+  return (
+    <svg {...base} {...props}>
+      <path d="M9.2 3.8h5.6l5 8.7-2.8 4.9H7l-2.8-4.9 5-8.7Z" />
+      <path d="M9.2 3.8 12 8.7l-5 8.7" />
+      <path d="M17 8.7h-5" />
+    </svg>
+  );
+}
+
+export function FolderIcon(props: IconProps) {
+  return (
+    <svg {...base} {...props}>
+      <path d="M3.5 6.8A1.8 1.8 0 0 1 5.3 5h3.4l2 2.4h8a1.8 1.8 0 0 1 1.8 1.8v7.4a1.8 1.8 0 0 1-1.8 1.8H5.3a1.8 1.8 0 0 1-1.8-1.8V6.8Z" />
+    </svg>
+  );
+}
+
 export function Spinner({ className = "" }: { className?: string }) {
   return (
     <svg viewBox="0 0 24 24" className={`animate-spin ${className}`} fill="none">

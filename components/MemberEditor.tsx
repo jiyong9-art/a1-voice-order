@@ -11,6 +11,8 @@ interface MembersResponse {
   persistent?: boolean;
   warning?: string;
   verified?: boolean;
+  adminRequired?: boolean;
+  adminConfigured?: boolean;
   error?: string;
 }
 
@@ -25,17 +27,16 @@ export default function MemberEditor({
   members,
   onClose,
   onMembersChange,
-  sessionAuthed = false,
 }: {
   open: boolean;
   members: string[];
   onClose: () => void;
   onMembersChange: (members: string[]) => void;
-  /** 로그인된 사용자는 비밀번호를 다시 묻지 않습니다. */
-  sessionAuthed?: boolean;
 }) {
   const [passcode, setPasscode] = useState("");
-  const [unlocked, setUnlocked] = useState(sessionAuthed);
+  // 직원 추가·삭제는 관리자 전용입니다. 로그인 세션만으로는 열리지 않습니다.
+  const [unlocked, setUnlocked] = useState(false);
+  const [adminConfigured, setAdminConfigured] = useState<boolean | null>(null);
   const [newName, setNewName] = useState("");
   const [busy, setBusy] = useState<"verify" | "add" | "delete" | null>(null);
   const [error, setError] = useState("");
@@ -52,14 +53,13 @@ export default function MemberEditor({
       setError("");
       setNotice("");
       setPendingDelete(null);
-      setUnlocked(sessionAuthed);
       return;
     }
-    // 닫을 때는 비밀번호를 메모리에 남기지 않습니다.
+    // 닫을 때는 비밀번호와 잠금 해제 상태를 메모리에 남기지 않습니다.
     setPasscode("");
     setNewName("");
-    if (!sessionAuthed) setUnlocked(false);
-  }, [open, sessionAuthed]);
+    setUnlocked(false);
+  }, [open]);
 
   useEffect(() => {
     if (!open) return;
@@ -88,6 +88,7 @@ export default function MemberEditor({
       if (Array.isArray(data.members)) onMembersChange(data.members);
       if (typeof data.persistent === "boolean") setPersistent(data.persistent);
       if (typeof data.source === "string") setSource(data.source);
+      if (typeof data.adminConfigured === "boolean") setAdminConfigured(data.adminConfigured);
       setWarning(data.warning ?? "");
     },
     [onMembersChange],
@@ -98,12 +99,12 @@ export default function MemberEditor({
       const res = await fetch("/api/members", {
         method,
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...payload, ...(sessionAuthed ? {} : { passcode }) }),
+        body: JSON.stringify({ ...payload, adminPasscode: passcode }),
       });
       const data = (await res.json().catch(() => ({}))) as MembersResponse;
       return { ok: res.ok && data.ok === true, data };
     },
-    [passcode, sessionAuthed],
+    [passcode],
   );
 
   // 모달을 열 때마다 연동 상태(시트/임시)를 다시 확인합니다.
@@ -129,14 +130,14 @@ export default function MemberEditor({
     if (busy) return;
     setError("");
     if (!passcode.trim()) {
-      setError("팀 비밀번호를 입력해 주세요.");
+      setError("관리자 비밀번호를 입력해 주세요.");
       return;
     }
     setBusy("verify");
     try {
       const { ok, data } = await call("POST", {});
       if (!ok) {
-        setError(data.error ?? "팀 비밀번호가 맞지 않습니다.");
+        setError(data.error ?? "관리자 비밀번호가 맞지 않습니다.");
         return;
       }
       applyState(data);
@@ -221,7 +222,7 @@ export default function MemberEditor({
           <div className="min-w-0">
             <h2 className="text-[14.5px] font-bold leading-5 text-slate-900">직원 관리</h2>
             <p className="truncate text-[11px] leading-4 text-slate-400">
-              {sessionAuthed ? "추가·삭제하면 로그인 화면 명단에 바로 반영됩니다" : "팀 비밀번호를 확인한 뒤 추가·삭제할 수 있습니다"}
+              관리자 비밀번호를 확인한 뒤 추가·삭제할 수 있습니다
             </p>
           </div>
           <button
@@ -237,7 +238,7 @@ export default function MemberEditor({
         {!unlocked ? (
           <form onSubmit={verify} className="px-4 py-5">
             <label htmlFor="member-passcode" className="block text-[12.5px] font-semibold text-slate-700">
-              팀 비밀번호
+              관리자 비밀번호
             </label>
             <input
               id="member-passcode"
@@ -245,7 +246,7 @@ export default function MemberEditor({
               autoComplete="current-password"
               value={passcode}
               onChange={(event) => setPasscode(event.target.value)}
-              placeholder="사내 공용 비밀번호"
+              placeholder="관리자만 아는 비밀번호"
               className="mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-[15px] tracking-widest outline-none transition focus:border-brand focus:bg-white focus:ring-4 focus:ring-brand-border/60"
             />
             {error && (
@@ -265,7 +266,13 @@ export default function MemberEditor({
               )}
             </button>
             <p className="mt-2.5 text-center text-[11px] leading-4 text-slate-400">
-              직원 목록은 구글 시트 ‘직원목록’ 탭과 함께 관리됩니다
+              직원 추가·삭제는 <b className="text-slate-500">관리자만</b> 할 수 있습니다.
+              {adminConfigured === false && (
+                <>
+                  <br />
+                  (관리자 비밀번호 미설정 — 팀 비밀번호를 사용합니다)
+                </>
+              )}
             </p>
           </form>
         ) : (

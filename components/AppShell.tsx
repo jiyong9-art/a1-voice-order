@@ -3,15 +3,19 @@
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { appendRecord, countRecords, makeRecord, type LocalRecord } from "@/lib/local-store";
 import type { CallSummaryResult, Mode, OrderResult, SubmitResponse } from "@/lib/types";
 import logoWide from "@/public/logo-a1-wide.png";
 import CallSummaryCard from "./CallSummaryCard";
 import Composer from "./Composer";
+import LocalLibrary from "./LocalLibrary";
 import MemberEditor from "./MemberEditor";
-import OrderCard, { type SubmitState } from "./OrderCard";
+import OrderCard from "./OrderCard";
+import { idleSubmit, type SaveTarget, type SubmitState } from "./SaveActions";
 import {
   AlertIcon,
   CheckIcon,
+  FolderIcon,
   LogoutIcon,
   MicIcon,
   PhoneIcon,
@@ -34,8 +38,6 @@ interface AppStatus {
   hasPasscode: boolean;
   spreadsheetUrl: string | null;
 }
-
-const idleSubmit: SubmitState = { phase: "draft" };
 
 function newId(): string {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -80,6 +82,8 @@ export default function AppShell({
   const [menuOpen, setMenuOpen] = useState(false);
   const [members, setMembers] = useState<string[]>(teamMembers);
   const [membersOpen, setMembersOpen] = useState(false);
+  const [libraryOpen, setLibraryOpen] = useState(false);
+  const [localCount, setLocalCount] = useState(0);
   const bottomRef = useRef<HTMLDivElement | null>(null);
   const toastTimer = useRef<number | null>(null);
 
@@ -117,6 +121,11 @@ export default function AppShell({
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
   }, [messages, phase]);
+
+  // 내 기기 저장함 건수 (localStorage — 브라우저에서만 읽습니다)
+  useEffect(() => {
+    setLocalCount(countRecords(userName));
+  }, [userName, libraryOpen]);
 
   // 직원 명단은 구글 시트 ‘직원목록’ 기준으로 맞춥니다.
   useEffect(() => {
@@ -246,13 +255,52 @@ export default function AppShell({
     await structure(text, mode);
   }, [input, mode, phase, push, structure]);
 
+  /** 카드의 저장 상태를 부분 갱신합니다(내 기기 사본 + 드라이브 결과를 함께 남기기 위해). */
+  const patchSubmit = useCallback((id: string, patch: Partial<SubmitState>) => {
+    setMessages((prev) =>
+      prev.map((m) =>
+        m.id === id && (m.kind === "order" || m.kind === "call")
+          ? { ...m, submit: { ...m.submit, ...patch } }
+          : m,
+      ),
+    );
+  }, []);
+
+  /** 카드 내용을 이 기기(localStorage)에 저장하고, 저장된 기록과 전체 건수를 돌려줍니다. */
+  const saveToDevice = useCallback(
+    (targetMode: Mode, data: OrderResult | CallSummaryResult): { record: LocalRecord; count: number } => {
+      const record = makeRecord(targetMode, data);
+      const next = appendRecord(userName, record);
+      setLocalCount(next.length);
+      return { record, count: next.length };
+    },
+    [userName],
+  );
+
   const submitCard = useCallback(
-    async (id: string, targetMode: Mode, data: OrderResult | CallSummaryResult) => {
-      setMessages((prev) =>
-        prev.map((m) =>
-          m.id === id && (m.kind === "order" || m.kind === "call") ? { ...m, submit: { phase: "submitting" } } : m,
-        ),
-      );
+    async (
+      id: string,
+      targetMode: Mode,
+      data: OrderResult | CallSummaryResult,
+      target: SaveTarget,
+      alsoLocal: boolean,
+      existingLocal?: { record: LocalRecord; count: number },
+    ) => {
+      // ① 내 기기 저장 — 서버를 부르지 않으므로 시트 미연결이어도 100% 완결됩니다.
+      let local = existingLocal;
+      if (!local && (target === "local" || alsoLocal)) {
+        local = saveToDevice(targetMode, data);
+      }
+
+      if (target === "local") {
+        if (!local) local = saveToDevice(targetMode, data);
+        patchSubmit(id, { phase: "done", target: "local", local, error: undefined });
+        showToast("내 기기에 저장했습니다. 엑셀(CSV)로도 내려받을 수 있어요.", "ok");
+        return;
+      }
+
+      // ② 구글 드라이브(시트) 저장
+      patchSubmit(id, { phase: "submitting", target: "drive", local, error: undefined });
       try {
         const res = await fetch("/api/submit", {
           method: "POST",
@@ -261,33 +309,21 @@ export default function AppShell({
         });
         const json = (await res.json()) as SubmitResponse & { error?: string };
         if (!res.ok || !json.ok) {
-          throw new Error(json.error ?? "등록에 실패했습니다.");
+          throw new Error(json.error ?? "저장에 실패했습니다.");
         }
-        setMessages((prev) =>
-          prev.map((m) =>
-            m.id === id && (m.kind === "order" || m.kind === "call")
-              ? { ...m, submit: { phase: "done", result: json } }
-              : m,
-          ),
-        );
+        patchSubmit(id, { phase: "done", target: "drive", result: json, local, error: undefined });
         if (json.sheet.skipped) {
-          showToast("시트가 연결되지 않아 저장되지 않았습니다.", "warn");
+          showToast("구글 시트가 연결되지 않아 드라이브에는 저장되지 않았습니다.", "warn");
         } else {
-          showToast(`${json.sheet.tab} 시트에 등록했습니다.`, "ok");
+          showToast(`${json.sheet.tab} 시트에 저장했습니다.`, "ok");
         }
       } catch (err) {
-        const text = err instanceof Error ? err.message : "등록에 실패했습니다.";
-        setMessages((prev) =>
-          prev.map((m) =>
-            m.id === id && (m.kind === "order" || m.kind === "call")
-              ? { ...m, submit: { phase: "error", error: text } }
-              : m,
-          ),
-        );
+        const text = err instanceof Error ? err.message : "저장에 실패했습니다.";
+        patchSubmit(id, { phase: "error", target: "drive", error: text, local });
         showToast(text, "error");
       }
     },
-    [showToast],
+    [patchSubmit, saveToDevice, showToast],
   );
 
   async function logout() {
@@ -300,7 +336,7 @@ export default function AppShell({
   const warnings: string[] = [];
   if (!status.hasPasscode) warnings.push("팀 비밀번호(APP_PASSCODE)가 설정되지 않았습니다.");
   if (!status.ai) warnings.push(status.mock ? "" : "OPENAI_API_KEY 미설정 — 음성 변환이 동작하지 않습니다.");
-  if (!status.sheets) warnings.push("구글 시트 미연결 — 등록해도 저장되지 않습니다.");
+  if (!status.sheets) warnings.push("구글 시트 미연결 — [구글 드라이브 저장]은 동작하지 않습니다. [내 기기에 저장]은 그대로 됩니다.");
 
   return (
     <div className="mx-auto flex h-dvh w-full max-w-md flex-col bg-white/40">
@@ -316,7 +352,7 @@ export default function AppShell({
             <h1 className="truncate text-[13.5px] font-bold leading-4 tracking-tight text-slate-900">
               음성 업무 오더
             </h1>
-            <p className="truncate text-[10.5px] leading-4 text-slate-400">시트·메일 자동 정리</p>
+            <p className="truncate text-[10.5px] leading-4 text-slate-400">내 기기 · 드라이브 정리</p>
           </div>
           <div className="relative ml-auto shrink-0">
             {menuOpen && (
@@ -352,6 +388,19 @@ export default function AppShell({
                     업무오더 시트 열기
                   </a>
                 )}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMenuOpen(false);
+                    setLibraryOpen(true);
+                  }}
+                  className="flex w-full items-center gap-2 border-t border-slate-100 px-3 py-2.5 text-left text-[13px] font-medium text-slate-700 hover:bg-slate-50"
+                >
+                  <FolderIcon className="h-4 w-4" /> 내 기기 저장함
+                  <span className="ml-auto rounded-full bg-slate-100 px-1.5 py-0.5 text-[10.5px] font-semibold text-slate-500">
+                    {localCount}건
+                  </span>
+                </button>
                 <button
                   type="button"
                   onClick={() => {
@@ -483,7 +532,14 @@ export default function AppShell({
                     <OrderCard
                       data={message.data}
                       submit={message.submit}
-                      onSubmit={(order) => submitCard(message.id, "order", order)}
+                      owner={userName}
+                      onOpenLibrary={() => setLibraryOpen(true)}
+                      onSubmitLocal={(order, existing) =>
+                        submitCard(message.id, "order", order, "local", false, existing)
+                      }
+                      onSubmitDrive={(order, existing, alsoLocal) =>
+                        submitCard(message.id, "order", order, "drive", alsoLocal, existing)
+                      }
                     />
                   </div>
                 </div>
@@ -496,7 +552,14 @@ export default function AppShell({
                   <CallSummaryCard
                     data={message.data}
                     submit={message.submit}
-                    onSubmit={(summary) => submitCard(message.id, "call_summary", summary)}
+                    owner={userName}
+                    onOpenLibrary={() => setLibraryOpen(true)}
+                    onSubmitLocal={(summary, existing) =>
+                      submitCard(message.id, "call_summary", summary, "local", false, existing)
+                    }
+                    onSubmitDrive={(summary, existing, alsoLocal) =>
+                      submitCard(message.id, "call_summary", summary, "drive", alsoLocal, existing)
+                    }
                   />
                 </div>
               </div>
@@ -536,7 +599,13 @@ export default function AppShell({
         members={members}
         onClose={() => setMembersOpen(false)}
         onMembersChange={setMembers}
-        sessionAuthed
+      />
+
+      <LocalLibrary
+        open={libraryOpen}
+        owner={userName}
+        onClose={() => setLibraryOpen(false)}
+        onChanged={setLocalCount}
       />
 
       <Composer

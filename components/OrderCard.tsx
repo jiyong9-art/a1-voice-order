@@ -1,15 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import type { OrderResult, Priority, SubmitResponse } from "@/lib/types";
+import type { OrderResult, Priority } from "@/lib/types";
 import { PRIORITIES, priorityTone } from "@/lib/types";
-import { AlertIcon, CheckIcon, MailIcon, SheetIcon, Spinner } from "./icons";
+import { DoneState, LocalSavedBadge, SaveActions, type LocalSaved, type SubmitState } from "./SaveActions";
 
-export type SubmitState = {
-  phase: "draft" | "submitting" | "done" | "error";
-  result?: SubmitResponse;
-  error?: string;
-};
+export type { SubmitState };
 
 const fieldClass =
   "w-full rounded-xl border border-slate-200 bg-slate-50/70 px-3 py-2 text-[14px] leading-6 text-slate-800 outline-none transition focus:border-brand focus:bg-white focus:ring-4 focus:ring-brand-border/60";
@@ -17,14 +13,21 @@ const fieldClass =
 export default function OrderCard({
   data,
   submit,
-  onSubmit,
+  owner,
+  onSubmitLocal,
+  onSubmitDrive,
+  onOpenLibrary,
 }: {
   data: OrderResult;
   submit: SubmitState;
-  onSubmit: (order: OrderResult) => void;
+  owner: string;
+  onSubmitLocal: (order: OrderResult, existing?: LocalSaved) => void;
+  onSubmitDrive: (order: OrderResult, existing: LocalSaved | undefined, alsoLocal: boolean) => void;
+  onOpenLibrary?: () => void;
 }) {
   const [form, setForm] = useState<OrderResult>(data);
   const [showRaw, setShowRaw] = useState(false);
+  const [alsoLocal, setAlsoLocal] = useState(false);
   const locked = submit.phase === "submitting" || submit.phase === "done";
 
   const update = (patch: Partial<OrderResult>) => setForm((prev) => ({ ...prev, ...patch }));
@@ -121,94 +124,38 @@ export default function OrderCard({
       </div>
 
       <div className="border-t border-slate-100 px-4 py-3">
-        {submit.phase === "done" && submit.result ? (
-          <DoneState result={submit.result} />
+        {submit.phase === "done" ? (
+          <DoneState
+            state={submit}
+            mode="order"
+            owner={owner}
+            onOpenLibrary={onOpenLibrary}
+            onSaveLocal={() => onSubmitLocal(form, submit.local)}
+          />
         ) : (
-          <>
-            {submit.error && (
-              <p className="mb-2 flex items-start gap-1.5 rounded-xl bg-red-50 px-3 py-2 text-[12px] leading-5 text-red-600">
-                <AlertIcon className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-                {submit.error}
-              </p>
+          <div className="space-y-2">
+            {submit.local && (
+              <LocalSavedBadge
+                record={submit.local.record}
+                count={submit.local.count}
+                mode="order"
+                owner={owner}
+                onOpenLibrary={onOpenLibrary}
+              />
             )}
-            <button
-              type="button"
-              onClick={() => onSubmit(form)}
-              disabled={submit.phase === "submitting"}
-              className="flex w-full items-center justify-center gap-2 rounded-2xl bg-brand py-3 text-[14.5px] font-semibold text-white shadow-md shadow-brand/25 transition hover:bg-brand-dark active:scale-[0.99] disabled:opacity-60"
-            >
-              {submit.phase === "submitting" ? (
-                <>
-                  <Spinner className="h-4 w-4" /> 시트에 기록하는 중…
-                </>
-              ) : (
-                <>
-                  <SheetIcon className="h-4 w-4" /> 시트에 등록하고 담당자에게 알림
-                </>
-              )}
-            </button>
-          </>
+            <SaveActions
+              mode="order"
+              target={submit.phase === "submitting" ? submit.target : undefined}
+              alsoLocal={alsoLocal}
+              onToggleAlsoLocal={setAlsoLocal}
+              onSaveLocal={() => onSubmitLocal(form, submit.local)}
+              onSaveDrive={() => onSubmitDrive(form, submit.local, alsoLocal)}
+              onOpenLibrary={onOpenLibrary}
+              error={submit.phase === "error" ? submit.error : undefined}
+            />
+          </div>
         )}
       </div>
-    </div>
-  );
-}
-
-export function DoneState({ result }: { result: SubmitResponse }) {
-  const sheetSkipped = result.sheet.skipped;
-  const mailSkipped = result.mail.skipped;
-  return (
-    <div className="space-y-2">
-      <div
-        className={`flex items-start gap-2 rounded-2xl px-3 py-2.5 text-[12.5px] leading-5 ${
-          sheetSkipped ? "bg-amber-50 text-amber-800" : "bg-emerald-50 text-emerald-700"
-        }`}
-      >
-        {sheetSkipped ? <AlertIcon className="mt-0.5 h-4 w-4 shrink-0" /> : <CheckIcon className="mt-0.5 h-4 w-4 shrink-0" />}
-        <div className="min-w-0">
-          {sheetSkipped ? (
-            <>
-              <b>시트에 저장되지 않았습니다.</b>
-              <br />
-              {result.sheet.reason}
-            </>
-          ) : (
-            <>
-              <b>
-                ‘{result.sheet.tab}’ {result.sheet.target === "personal" ? "내 전용 시트" : "시트"}{" "}
-                {result.sheet.row ? `${result.sheet.row}행` : "새 행"}에 기록했습니다.
-              </b>
-              {result.sheet.url && (
-                <a
-                  href={result.sheet.url}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="ml-1 underline decoration-emerald-300 underline-offset-2"
-                >
-                  시트 열기
-                </a>
-              )}
-            </>
-          )}
-        </div>
-      </div>
-
-      <div
-        className={`flex items-start gap-2 rounded-2xl px-3 py-2.5 text-[12.5px] leading-5 ${
-          mailSkipped ? "bg-slate-50 text-slate-500" : "bg-emerald-50/70 text-emerald-700"
-        }`}
-      >
-        <MailIcon className="mt-0.5 h-4 w-4 shrink-0" />
-        <div className="min-w-0">
-          {mailSkipped ? (
-            <>메일 알림은 건너뛰었습니다. {result.mail.reason}</>
-          ) : (
-            <>담당자에게 알림 메일을 보냈습니다. ({result.mail.to.join(", ")})</>
-          )}
-        </div>
-      </div>
-
-      <p className="text-right text-[10.5px] text-slate-400">등록일시 {result.registeredAt}</p>
     </div>
   );
 }

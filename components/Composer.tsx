@@ -2,9 +2,13 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Mode } from "@/lib/types";
-import { MicIcon, PaperclipIcon, SendIcon, Spinner, StopIcon } from "./icons";
+import { AlertIcon, CloseIcon, MicIcon, PaperclipIcon, SendIcon, Spinner, StopIcon } from "./icons";
 
 const MAX_SECONDS = 120;
+
+/** 마이크를 쓸 수 없을 때(PC에 장치 없음·브라우저 권한 차단 등) 보여 줄 안내 */
+const MIC_GUIDE =
+  "PC에 마이크가 없거나 브라우저 권한이 꺼져 있어요. 아래 입력창에 글로 입력하거나 📎 파일 올리기를 이용해 주세요.";
 
 function pickMimeType(): string {
   if (typeof MediaRecorder === "undefined") return "";
@@ -48,6 +52,7 @@ export default function Composer({
 }) {
   const [recording, setRecording] = useState(false);
   const [seconds, setSeconds] = useState(0);
+  const [micHint, setMicHint] = useState(false);
   const recorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const streamRef = useRef<MediaStream | null>(null);
@@ -70,8 +75,13 @@ export default function Composer({
   }, []);
 
   const startRecording = useCallback(async () => {
-    if (typeof navigator === "undefined" || !navigator.mediaDevices?.getUserMedia) {
-      onError("이 브라우저에서는 녹음을 지원하지 않습니다. 📎로 녹음 파일을 올려 주세요.");
+    // 마이크를 쓸 수 없는 환경이면 막연한 오류 대신 무엇을 하면 되는지 분명히 알려 줍니다.
+    const unsupported =
+      typeof navigator === "undefined" ||
+      !navigator.mediaDevices?.getUserMedia ||
+      typeof MediaRecorder === "undefined";
+    if (unsupported) {
+      setMicHint(true);
       return;
     }
     try {
@@ -101,17 +111,12 @@ export default function Composer({
       recorder.start(250);
       recorderRef.current = recorder;
       streamRef.current = stream;
+      setMicHint(false);
       setSeconds(0);
       setRecording(true);
-    } catch (err) {
-      const name = err instanceof DOMException ? err.name : "";
-      if (name === "NotAllowedError" || name === "SecurityError") {
-        onError("마이크 권한이 꺼져 있습니다. 브라우저 주소창의 자물쇠에서 마이크를 허용해 주세요.");
-      } else if (name === "NotFoundError") {
-        onError("마이크를 찾지 못했습니다. 📎로 녹음 파일을 올려 주세요.");
-      } else {
-        onError("녹음을 시작하지 못했습니다. 잠시 후 다시 시도해 주세요.");
-      }
+    } catch {
+      // 권한 차단(NotAllowedError)·장치 없음(NotFoundError)·MediaRecorder 실패 모두 같은 안내로 모읍니다.
+      setMicHint(true);
     }
   }, [onAudio, onError]);
 
@@ -146,6 +151,23 @@ export default function Composer({
 
   return (
     <div className="border-t border-slate-200/80 bg-white/95 backdrop-blur">
+      {micHint && !recording && (
+        <div className="mx-auto max-w-md px-3 pt-2.5">
+          <div className="flex items-start gap-2 rounded-2xl bg-amber-50 px-3 py-2 text-[12px] leading-5 text-amber-800 ring-1 ring-amber-100">
+            <AlertIcon className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+            <span className="flex-1">{MIC_GUIDE}</span>
+            <button
+              type="button"
+              onClick={() => setMicHint(false)}
+              aria-label="안내 닫기"
+              className="mt-0.5 shrink-0 rounded-full p-0.5 text-amber-500 transition hover:bg-amber-100"
+            >
+              <CloseIcon className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        </div>
+      )}
+
       {(recording || disabled) && (
         <div className="mx-auto flex max-w-md items-center gap-3 px-4 pt-2.5">
           {recording ? (

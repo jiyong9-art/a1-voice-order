@@ -26,7 +26,7 @@ export default async function LoginPage() {
             className="mx-auto mb-4 h-32 w-auto sm:h-36"
           />
           <h1 className="text-xl font-bold tracking-tight text-slate-900">음성 업무 오더</h1>
-          <p className="mt-1.5 text-sm text-slate-500">말로 지시하면 시트와 메일로 정리됩니다</p>
+          <p className="mt-1.5 text-sm text-slate-500">말로 지시하면 내 기기와 드라이브에 정리됩니다</p>
         </div>
 
         <LoginForm initialMembers={defaultTeamMembers()} passcodeConfigured={isSet("APP_PASSCODE")} />

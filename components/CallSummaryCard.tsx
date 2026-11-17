@@ -2,8 +2,8 @@
 
 import { useState } from "react";
 import type { CallSummaryResult } from "@/lib/types";
-import { AlertIcon, CheckIcon, CopyIcon, MailIcon, SheetIcon, Spinner } from "./icons";
-import { DoneState, type SubmitState } from "./OrderCard";
+import { CopyIcon } from "./icons";
+import { DoneState, LocalSavedBadge, SaveActions, type LocalSaved, type SubmitState } from "./SaveActions";
 
 const fieldClass =
   "w-full rounded-xl border border-slate-200 bg-slate-50/70 px-3 py-2 text-[14px] leading-6 text-slate-800 outline-none transition focus:border-brand focus:bg-white focus:ring-4 focus:ring-brand-border/60";
@@ -21,13 +21,20 @@ function fromLines(text: string): string[] {
 export default function CallSummaryCard({
   data,
   submit,
-  onSubmit,
+  owner,
+  onSubmitLocal,
+  onSubmitDrive,
+  onOpenLibrary,
 }: {
   data: CallSummaryResult;
   submit: SubmitState;
-  onSubmit: (summary: CallSummaryResult) => void;
+  owner: string;
+  onSubmitLocal: (summary: CallSummaryResult, existing?: LocalSaved) => void;
+  onSubmitDrive: (summary: CallSummaryResult, existing: LocalSaved | undefined, alsoLocal: boolean) => void;
+  onOpenLibrary?: () => void;
 }) {
   const [form, setForm] = useState<CallSummaryResult>(data);
+  const [alsoLocal, setAlsoLocal] = useState(false);
   const [showRaw, setShowRaw] = useState(false);
   const [copied, setCopied] = useState(false);
   const locked = submit.phase === "submitting" || submit.phase === "done";
@@ -153,33 +160,36 @@ export default function CallSummaryCard({
       </div>
 
       <div className="border-t border-slate-100 px-4 py-3">
-        {submit.phase === "done" && submit.result ? (
-          <DoneState result={submit.result} />
+        {submit.phase === "done" ? (
+          <DoneState
+            state={submit}
+            mode="call_summary"
+            owner={owner}
+            onOpenLibrary={onOpenLibrary}
+            onSaveLocal={() => onSubmitLocal(form, submit.local)}
+          />
         ) : (
-          <>
-            {submit.error && (
-              <p className="mb-2 flex items-start gap-1.5 rounded-xl bg-red-50 px-3 py-2 text-[12px] leading-5 text-red-600">
-                <AlertIcon className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-                {submit.error}
-              </p>
+          <div className="space-y-2">
+            {submit.local && (
+              <LocalSavedBadge
+                record={submit.local.record}
+                count={submit.local.count}
+                mode="call_summary"
+                owner={owner}
+                onOpenLibrary={onOpenLibrary}
+              />
             )}
-            <button
-              type="button"
-              onClick={() => onSubmit(form)}
-              disabled={submit.phase === "submitting"}
-              className="flex w-full items-center justify-center gap-2 rounded-2xl bg-brand py-3 text-[14.5px] font-semibold text-white shadow-md shadow-brand/25 transition hover:bg-brand-dark active:scale-[0.99] disabled:opacity-60"
-            >
-              {submit.phase === "submitting" ? (
-                <>
-                  <Spinner className="h-4 w-4" /> 시트에 기록하는 중…
-                </>
-              ) : (
-                <>
-                  <SheetIcon className="h-4 w-4" /> 통화요약 시트에 등록
-                </>
-              )}
-            </button>
-          </>
+            <SaveActions
+              mode="call_summary"
+              target={submit.phase === "submitting" ? submit.target : undefined}
+              alsoLocal={alsoLocal}
+              onToggleAlsoLocal={setAlsoLocal}
+              onSaveLocal={() => onSubmitLocal(form, submit.local)}
+              onSaveDrive={() => onSubmitDrive(form, submit.local, alsoLocal)}
+              onOpenLibrary={onOpenLibrary}
+              error={submit.phase === "error" ? submit.error : undefined}
+            />
+          </div>
         )}
       </div>
     </div>
