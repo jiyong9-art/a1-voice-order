@@ -281,8 +281,8 @@ export default function LocalLibrary({
             </div>
           ) : (
             <div className="flex items-center justify-between gap-2">
-              <p className="text-[10.5px] leading-4 text-slate-400">
-                이 브라우저에만 보관됩니다 · CSV는 엑셀에서 바로 열립니다
+              <p className="truncate text-[10.5px] leading-4 text-slate-400">
+                이 브라우저에만 보관 · CSV는 엑셀로 바로 열립니다
               </p>
               <button
                 type="button"
