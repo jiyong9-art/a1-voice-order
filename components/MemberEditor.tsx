@@ -48,11 +48,17 @@ export default function MemberEditor({
   const listRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
-    if (!open) return;
-    setError("");
-    setNotice("");
-    setPendingDelete(null);
-    setUnlocked(sessionAuthed);
+    if (open) {
+      setError("");
+      setNotice("");
+      setPendingDelete(null);
+      setUnlocked(sessionAuthed);
+      return;
+    }
+    // 닫을 때는 비밀번호를 메모리에 남기지 않습니다.
+    setPasscode("");
+    setNewName("");
+    if (!sessionAuthed) setUnlocked(false);
   }, [open, sessionAuthed]);
 
   useEffect(() => {
