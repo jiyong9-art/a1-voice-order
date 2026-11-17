@@ -133,6 +133,44 @@ export function EditIcon(props: IconProps) {
   );
 }
 
+export function UsersIcon(props: IconProps) {
+  return (
+    <svg {...base} {...props}>
+      <path d="M9 11.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z" />
+      <path d="M2.5 20.2a6.5 6.5 0 0 1 13 0" />
+      <path d="M16.2 4.8a3.2 3.2 0 0 1 0 6.2" />
+      <path d="M17.8 14.4a5.6 5.6 0 0 1 3.7 5.8" />
+    </svg>
+  );
+}
+
+export function PlusIcon(props: IconProps) {
+  return (
+    <svg {...base} {...props}>
+      <path d="M12 5.5v13M5.5 12h13" />
+    </svg>
+  );
+}
+
+export function TrashIcon(props: IconProps) {
+  return (
+    <svg {...base} {...props}>
+      <path d="M4.5 7h15" />
+      <path d="M9.5 7V5.3A1.3 1.3 0 0 1 10.8 4h2.4a1.3 1.3 0 0 1 1.3 1.3V7" />
+      <path d="M6.6 7l.8 11.1A1.9 1.9 0 0 0 9.3 20h5.4a1.9 1.9 0 0 0 1.9-1.9L17.4 7" />
+      <path d="M10.2 11v5.2M13.8 11v5.2" />
+    </svg>
+  );
+}
+
+export function CloseIcon(props: IconProps) {
+  return (
+    <svg {...base} {...props}>
+      <path d="m6.5 6.5 11 11M17.5 6.5l-11 11" />
+    </svg>
+  );
+}
+
 export function Spinner({ className = "" }: { className?: string }) {
   return (
     <svg viewBox="0 0 24 24" className={`animate-spin ${className}`} fill="none">

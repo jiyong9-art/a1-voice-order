@@ -1,10 +1,21 @@
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
 import { aiConfigured, mockAiEnabled, structureCallSummary, structureOrder } from "@/lib/ai";
+import { listMembers } from "@/lib/members";
 import { clientIp, rateLimit } from "@/lib/rate-limit";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
+
+/** 담당자 이름을 직원목록(구글 시트) 기준으로 맞춥니다. 실패하면 기본 명단을 씁니다. */
+async function teamNames(): Promise<string[] | undefined> {
+  try {
+    const state = await listMembers();
+    return state.members.length > 0 ? state.members : undefined;
+  } catch {
+    return undefined;
+  }
+}
 
 export async function POST(request: Request) {
   const session = await getSession();
@@ -53,7 +64,7 @@ export async function POST(request: Request) {
       data.raw_transcript = transcript;
       return NextResponse.json({ ok: true, mode, data });
     }
-    const data = await structureOrder(transcript, session.name);
+    const data = await structureOrder(transcript, session.name, await teamNames());
     data.raw_transcript = transcript;
     return NextResponse.json({ ok: true, mode, data });
   } catch (err) {

@@ -1,8 +1,19 @@
 @import "tailwindcss";
 
+/* 에이원코리아(A1KOREA) 정식 로고 기준 브랜드 색 */
+@theme {
+  --color-brand: #003a84; /* 기본 네이비 */
+  --color-brand-dark: #002b63; /* 누름/호버 */
+  --color-brand-light: #eef4fb; /* 연한 배경 */
+  --color-brand-border: #bfd4f2; /* 테두리 */
+}
+
 :root {
   color-scheme: light;
-  --brand: #4f46e5;
+  --brand: #003a84;
+  --brand-dark: #002b63;
+  --brand-light: #eef4fb;
+  --brand-border: #bfd4f2;
 }
 
 html,
@@ -12,7 +23,7 @@ body {
 
 body {
   background:
-    radial-gradient(1100px 520px at 50% -180px, #eef2ff 0%, rgba(238, 242, 255, 0) 70%),
+    radial-gradient(1100px 520px at 50% -180px, #eef4fb 0%, rgba(238, 244, 251, 0) 70%),
     #f8fafc;
   color: #0f172a;
   -webkit-font-smoothing: antialiased;

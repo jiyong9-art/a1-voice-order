@@ -77,16 +77,18 @@ bash scripts/smoke-test.sh   # 로그인·API 전 구간 자동 점검 (모의 �
 
 **`직원목록`** 1행:
 ```
-이름 | 이메일 | 직급
+이름 | 등록일시 | 시트ID
 ```
 예)
 ```
-문지용 | jiyong9@hanmail.net | 대표
-이광훈 | kwanghoon@example.com | 팀장
-송현준 | hyunjun@example.com | 팀원
+문지용 | 2026-11-17 | 1AbCdEf...
+이광훈 | 2026-11-17 |
+송현준 | 2026-11-17 |
 ```
 
-> 기본 팀원은 **문지용 · 이광훈 · 송현준 · 백남우 · 김남국 · 한원석 · 차정호 · 유병은** 8명입니다. (`TEAM_MEMBERS`를 비워 두면 이 8명이 로그인 화면 선택지와 담당자 매칭에 쓰입니다. 인원이 바뀌면 `TEAM_MEMBERS`에 쉼표로 이어 붙이세요.)
+> `시트ID`(C열)는 그 직원의 **전용 스프레드시트 파일 ID**입니다. 값이 있으면 그 직원이 등록한 업무오더·통화요약은 마스터 시트가 아니라 **본인 전용 파일**에 쌓입니다. 비어 있으면 마스터 시트에 기록되고, 이후 그 직원이 처음 저장할 때 Apps Script가 전용 시트를 만들어 줍니다.
+
+> 기본 팀원은 **문지용 · 이광훈 · 송현준 · 백남우 · 김남국 · 한원석 · 차정호 · 유병은** 8명입니다. (`TEAM_MEMBERS`를 비워 두면 이 8명이 로그인 화면 선택지와 담당자 매칭에 쓰입니다. 인원이 바뀌면 앱의 **직원 관리**에서 추가·삭제하거나 `TEAM_MEMBERS`에 쉼표로 이어 붙이세요.)
 
 ### 3-2. 서비스 계정 키 만들기
 1. https://console.cloud.google.com → 새 프로젝트 생성 (예: `a1-voice-order`)
@@ -101,6 +103,32 @@ bash scripts/smoke-test.sh   # 로그인·API 전 구간 자동 점검 (모의 �
 - `GOOGLE_SERVICE_ACCOUNT_JSON`: 다운로드한 JSON 파일 내용 **전체**를 한 줄로 붙여넣기
   - 터미널에서: `pbcopy < service-account.json` (맥) / PowerShell `Get-Content -Raw service-account.json | Set-Clipboard`
   - Vercel 입력창에는 파일 내용을 그대로 붙여넣으면 됩니다. 줄바꿈이 `\n` 문자열로 들어가도 앱이 자동 처리합니다.
+
+### 3-4. (더 쉬운 방법) Apps Script 웹앱 연동 — 서비스 계정 키 불필요
+구글 클라우드 서비스 계정을 만들지 않고, 마스터 시트에 붙이는 스크립트 한 번으로 끝낼 수 있습니다.
+
+1. 마스터 스프레드시트 → **확장 프로그램 → Apps Script**
+2. 편집기 내용을 지우고 `docs/google-apps-script.gs` 전체를 붙여넣기
+3. 파일 위쪽 `var SECRET = "CHANGE_ME_TO_A_LONG_RANDOM_STRING";` 를 길고 무작위한 문자열로 바꾸기 (예: `a1-9f3c2b7e41d8`)
+4. **저장 → 배포 → 새 배포 → 유형: 웹 앱**
+   - 다음 사용자로 실행: **나**
+   - 액세스 권한이 있는 사용자: **모든 사용자**
+5. 나오는 웹 앱 URL(`https://script.google.com/macros/s/.../exec`)을 복사
+6. 앱 환경변수(Vercel)에 등록하고 재배포
+   - `GOOGLE_APPS_SCRIPT_URL` = 복사한 `.../exec` 주소
+   - `GOOGLE_APPS_SCRIPT_SECRET` = 3번에서 정한 문자열
+
+이 방식이 설정되어 있으면 `GOOGLE_SERVICE_ACCOUNT_JSON` 없이도 직원 목록·추가·삭제와 업무오더 저장이 모두 동작합니다. (둘 다 있으면 Apps Script가 우선입니다.)
+
+**Apps Script가 처리하는 일**
+
+| action | 동작 |
+| --- | --- |
+| `members:list` | `직원목록` 탭을 읽어 이름·등록일시·시트ID 반환 |
+| `members:add` | 직원 행 추가 + `업무오더_{이름}` 스프레드시트를 마스터와 같은 폴더에 생성하고 C열에 ID 기록 |
+| `members:remove` | 해당 직원 행 삭제 (전용 시트 파일은 보존) |
+| `submit:order` | 로그인한 작성자의 전용 시트 `업무오더` 탭에 1행 추가 (없으면 마스터) |
+| `submit:summary` | 로그인한 작성자의 전용 시트 `통화요약` 탭에 1행 추가 (없으면 마스터) |
 
 ---
 
@@ -182,11 +210,13 @@ bash scripts/smoke-test.sh   # 로그인·API 전 구간 자동 점검 (모의 �
 | `components/OrderCard.tsx` | 업무 오더 확인·수정 카드 + 등록 버튼 |
 | `components/CallSummaryCard.tsx` | 통화 요약 확인·수정 카드 + 등록 버튼 |
 | `app/api/auth/login` · `logout` | 세션 쿠키(HMAC 서명, 7일) 발급/삽입 |
+| `app/api/members` | 직원 목록 조회(GET) · 추가(POST) · 삭제(DELETE). 세션 또는 팀 비밀번호로 보호 |
 | `app/api/transcribe` | 음성 → 텍스트 (OpenAI, 한국어 + 고유명사 프롬프트, 24MB 제한) |
 | `app/api/structure` | 텍스트 → `order` / `call_summary` JSON (JSON Schema 강제) |
 | `app/api/submit` | 시트 행 추가 + 담당자 메일 (미설정 시 건너뜀) |
 | `lib/ai.ts` | 모델 호출·JSON 정규화·모의 모드 |
-| `lib/sheets.ts` | 시트 append, `직원목록` 이메일 조회, 탭 자동 생성 |
+| `lib/sheets.ts` | 시트 읽기/쓰기, `직원목록`·직원 전용 시트 라우팅, Apps Script 웹앱 호출 |
+| `lib/members.ts` | 직원 목록·추가·삭제 (시트 연동이 없으면 런타임 fallback) |
 | `lib/mail.ts` | Resend / SMTP 발송 |
 | `lib/auth.ts` · `lib/rate-limit.ts` | 세션 검증 · 요청 수 제한(크레딧 보호) |
 | `public/manifest.json` · `public/icons/*` · `public/sw.js` | PWA 설치·아이콘·앱 셸 캐시 |
@@ -228,6 +258,8 @@ Vercel 서버리스 함수는 **요청 본문 4.5MB**까지만 받습니다. 그
 | "Unable to parse range" | `업무오더` 탭 이름 오타 또는 서비스 계정 권한 없음. 앱이 탭을 자동 생성하지만 시트 공유(편집자)가 안 되어 있으면 실패 |
 | 메일이 안 옴 | Resend 도메인 미인증 시 계정 소유자 메일로만 발송됨. `NOTIFY_EMAIL` 확인. 스팸함 확인 |
 | 시트에 저장은 되는데 메일만 실패 | `직원목록` 탭의 이름과 카드의 담당자 이름이 다르면 수신자를 못 찾음 (이름 띄어쓰기 무시하고 비교) |
+| `직원목록` 시트에 직원을 추가했는데 로그인 화면에 안 뜸 | ① 시트 연결(Apps Script 또는 서비스 계정)이 설정됐는지 확인 ② 앱을 새로고침(목록은 화면을 열 때마다 읽어옵니다) ③ `직원 관리` 모달의 배지가 `기본 명단`이면 시트 미연결 상태 |
+| 직원은 추가됐는데 업무오더가 마스터 시트에 쌓임 | `직원목록` C열(시트ID)이 비어 있으면 마스터에 기록됩니다. Apps Script 모드에서는 첫 저장 때 전용 시트가 자동 생성됩니다. 서비스 계정 모드에서는 직접 만든 시트 ID를 C열에 넣고 그 파일도 서비스 계정에 **편집자**로 공유해야 합니다. |
 | 통화 파일이 너무 큼 | 24MB 이하로 나누기. 아이폰 녹음은 `음성 메모 → 공유 → 파일 저장` 후 업로드 |
 
 ---
@@ -249,15 +281,19 @@ Vercel 서버리스 함수는 **요청 본문 4.5MB**까지만 받습니다. 그
 
 - `npm install` 완료 — Next 16.4.6, React 19.3.1, Tailwind 4.3.5, openai 7.57, @googleapis/sheets 18.1.3, google-auth-library 11.3.4, nodemailer 10.6
 - `npm run typecheck` (`tsc --noEmit`) **통과**
-- `npm run build` **통과** — `/`, `/login`, `/api/auth/login`, `/api/auth/logout`, `/api/transcribe`, `/api/structure`, `/api/submit` 모두 생성
+- `npm run build` **통과** — `/`, `/login`, `/api/auth/login`, `/api/auth/logout`, `/api/members`, `/api/transcribe`, `/api/structure`, `/api/submit` 모두 생성
 - `npm run dev` **정상 기동** (`/login` 200, 비로그인 `/` 307 리다이렉트)
-- `scripts/smoke-test.sh` **통과** — 잘못된 비밀번호 401 / 정상 로그인 200 / 미로그인 접근 307 / API 무단호출 401 / 음성 업로드 200 / 정리 200 / 등록 응답 정상(시트·메일 미설정 시 건너뜀 표시) / 로그아웃 후 307
+- `scripts/smoke-test.sh` **통과** — 잘못된 비밀번호 401 / 정상 로그인 200 / 미로그인 접근 307 / API 무단호출 401 / **직원 관리 API: GET 200, 무인증·오답 POST/DELETE 401, 비밀번호·세션 쿠키로 추가·삭제 성공(시트 미연결 시 `persistent:false` + 안내 문구)** / 음성 업로드 200 / 정리 200 / 등록 응답 정상(시트·메일 미설정 시 건너뜀 표시) / 로그아웃 후 307
+- 브라우저 실제 렌더(360px·1280px)로 로그인·메인·직원 관리 모달을 확인 — 가로 넘침 없음, 버튼·칩·말풍선 색상 `rgb(0, 58, 132)`(#003a84), 콘솔 오류 0건
+- `docs/google-apps-script.gs`를 가짜 구글 환경(SpreadsheetApp/DriveApp/ContentService 모킹)에서 실행해 `members:list/add/remove`, `submit:order/summary` 동작과 전용 시트 자동 생성·C열 기록을 확인
 - 정적 헤더 확인 — `X-Frame-Options: DENY`, `Permissions-Policy: microphone=(self)`, `/manifest.json`은 `application/manifest+json`, `/sw.js`는 `no-cache`
 - 실제 OpenAI·구글 시트·메일 호출은 **키 발급 후** 확인 필요 (아래 참고)
 
 ### 배포 시 대표님이 준비해 주셔야 하는 것
 1. **OpenAI API 키** (`sk-...`) — 카드 등록 후 크레딧 충전
-2. **구글 스프레드시트** 1개 + 탭 3개(`업무오더`/`통화요약`/`직원목록`) + `직원목록`에 이름·이메일
-3. **서비스 계정 JSON** (위 3-2 단계) — 시트에 편집자 공유
+2. **구글 스프레드시트** 1개 + 탭 3개(`업무오더`/`통화요약`/`직원목록`)
+3. **시트 연결 — 둘 중 하나**
+   - (쉬움) `docs/google-apps-script.gs` 붙여넣고 웹 앱으로 배포 → `GOOGLE_APPS_SCRIPT_URL` + `GOOGLE_APPS_SCRIPT_SECRET`
+   - (직접) **서비스 계정 JSON** (위 3-2 단계) + `GOOGLE_SPREADSHEET_ID` — 시트에 편집자 공유
 4. **팀 비밀번호** 정하기 (`APP_PASSCODE`)
 5. (선택) 메일: Resend 키 또는 회사 메일 SMTP 정보, 대표 수신 메일 `NOTIFY_EMAIL`

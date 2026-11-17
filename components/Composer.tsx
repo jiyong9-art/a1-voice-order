@@ -166,7 +166,7 @@ export default function Composer({
               </span>
             </div>
           ) : (
-            <div className="flex flex-1 items-center gap-2 rounded-full bg-indigo-50 px-3.5 py-2 text-indigo-600">
+            <div className="flex flex-1 items-center gap-2 rounded-full bg-brand-light px-3.5 py-2 text-brand">
               <Spinner className="h-4 w-4" />
               <span className="text-[12.5px] font-semibold">
                 {busy === "transcribing" ? "음성을 글자로 옮기는 중…" : "AI가 정리하고 있어요…"}
@@ -224,7 +224,7 @@ export default function Composer({
             onClick={onSend}
             disabled={disabled || (!value.trim() && !recording)}
             aria-label="전송"
-            className="mb-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-indigo-600 text-white shadow-sm shadow-indigo-200 transition active:scale-95 disabled:bg-slate-200 disabled:text-slate-400 disabled:shadow-none"
+            className="mb-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-brand text-white shadow-sm shadow-brand/25 transition hover:bg-brand-dark active:scale-95 disabled:bg-slate-200 disabled:text-slate-400 disabled:shadow-none"
           >
             <SendIcon className="h-5 w-5" />
           </button>

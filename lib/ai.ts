@@ -136,8 +136,7 @@ const CALL_SCHEMA = {
   },
 } as const;
 
-function orderSystemPrompt(): string {
-  const team = defaultTeamMembers();
+function orderSystemPrompt(team: string[] = defaultTeamMembers()): string {
   return [
     "너는 에이원코리아(A1)의 업무 지시 정리 비서다.",
     "대표나 직원이 구어체로 말한 업무 지시를 받아 실제로 실행 가능한 업무 지시서로 정리한다.",
@@ -255,11 +254,11 @@ async function chatJson(
   return parsed;
 }
 
-export async function structureOrder(transcript: string, sender: string): Promise<OrderResult> {
+export async function structureOrder(transcript: string, sender: string, team?: string[]): Promise<OrderResult> {
   const raw = transcript.trim();
+  const members = team && team.length > 0 ? team : defaultTeamMembers();
   if (mockAiEnabled()) {
-    const team = defaultTeamMembers();
-    const named = team.find((name) => raw.includes(name));
+    const named = members.find((name) => raw.includes(name));
     const firstClause = (raw.split(/[.。\n]/)[0] ?? raw).trim();
     return {
       assignee: named ?? "미지정",
@@ -272,7 +271,7 @@ export async function structureOrder(transcript: string, sender: string): Promis
   }
 
   const parsed = (await chatJson(
-    orderSystemPrompt(),
+    orderSystemPrompt(members),
     `지시자: ${sender}\n오늘: ${todayInSeoul()}\n\n[음성 원문]\n${raw}`,
     "work_order",
     ORDER_SCHEMA,

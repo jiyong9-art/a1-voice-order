@@ -9,7 +9,7 @@ LOG="$(mktemp)"
 export APP_PASSCODE="a1-test-2026"
 export MOCK_AI="true"
 export TEAM_MEMBERS="문지용,이광훈,송현준,백남우,김남국,한원석,차정호,유병은"
-unset OPENAI_API_KEY GOOGLE_SERVICE_ACCOUNT_JSON GOOGLE_SPREADSHEET_ID RESEND_API_KEY SMTP_HOST
+unset OPENAI_API_KEY GOOGLE_SERVICE_ACCOUNT_JSON GOOGLE_SPREADSHEET_ID GOOGLE_APPS_SCRIPT_URL GOOGLE_APPS_SCRIPT_SECRET RESEND_API_KEY SMTP_HOST
 
 NODE_OPTIONS=--max-old-space-size=1024 npx next start -p "$PORT" >"$LOG" 2>&1 &
 SERVER_PID=$!
@@ -40,6 +40,24 @@ curl -s -o /dev/null -w "GET /icons/icon-192.png -> %{http_code}\n" "$BASE/icons
 echo "== 5) 인증 없이 API 호출"
 curl -s -o /dev/null -w "POST /api/structure (no cookie) -> %{http_code}\n" -X POST "$BASE/api/structure" \
   -H 'Content-Type: application/json' -d '{"mode":"order","transcript":"테스트"}'
+
+echo "== 5-b) 직원 관리 API (/api/members)"
+curl -s -o /dev/null -w "GET /api/members -> %{http_code}\n" "$BASE/api/members"
+curl -s -o /dev/null -w "POST /api/members (no auth) -> %{http_code}\n" -X POST "$BASE/api/members" \
+  -H 'Content-Type: application/json' -d '{"name":"테스트직원"}'
+curl -s -o /dev/null -w "POST /api/members (wrong passcode) -> %{http_code}\n" -X POST "$BASE/api/members" \
+  -H 'Content-Type: application/json' -d '{"name":"테스트직원","passcode":"nope"}'
+curl -s -o /dev/null -w "DELETE /api/members (no auth) -> %{http_code}\n" -X DELETE "$BASE/api/members" \
+  -H 'Content-Type: application/json' -d '{"name":"문지용"}'
+echo -n "POST /api/members (passcode) -> "; curl -s -X POST "$BASE/api/members" \
+  -H 'Content-Type: application/json' -d '{"name":"테스트직원","passcode":"a1-test-2026"}'; echo
+curl -s "$BASE/api/members" | python3 -c "import sys,json; d=json.load(sys.stdin); print('members ->', d.get('members'), 'persistent =', d.get('persistent'))"
+echo -n "DELETE /api/members (passcode) -> "; curl -s -X DELETE "$BASE/api/members" \
+  -H 'Content-Type: application/json' -d '{"name":"테스트직원","passcode":"a1-test-2026"}'; echo
+echo -n "POST /api/members (session cookie) -> "; curl -s -b "$JAR" -X POST "$BASE/api/members" \
+  -H 'Content-Type: application/json' -d '{"name":"세션직원"}'; echo
+echo -n "DELETE /api/members (session cookie) -> "; curl -s -b "$JAR" -X DELETE "$BASE/api/members" \
+  -H 'Content-Type: application/json' -d '{"name":"세션직원"}'; echo
 
 echo "== 6) 음성 오더 구조화 (모의)"
 curl -s -b "$JAR" -X POST "$BASE/api/structure" -H 'Content-Type: application/json' \

@@ -6,7 +6,7 @@ import { AlertIcon, CheckIcon, CopyIcon, MailIcon, SheetIcon, Spinner } from "./
 import { DoneState, type SubmitState } from "./OrderCard";
 
 const fieldClass =
-  "w-full rounded-xl border border-slate-200 bg-slate-50/70 px-3 py-2 text-[14px] leading-6 text-slate-800 outline-none transition focus:border-indigo-400 focus:bg-white focus:ring-4 focus:ring-indigo-50";
+  "w-full rounded-xl border border-slate-200 bg-slate-50/70 px-3 py-2 text-[14px] leading-6 text-slate-800 outline-none transition focus:border-brand focus:bg-white focus:ring-4 focus:ring-brand-border/60";
 
 function toLines(list: string[]): string {
   return list.join("\n");
@@ -54,8 +54,8 @@ export default function CallSummaryCard({
 
   return (
     <div className="a1-fade-up overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-[0_8px_28px_-18px_rgba(15,23,42,0.35)]">
-      <div className="flex items-center gap-2 border-b border-slate-100 bg-gradient-to-r from-teal-50/80 to-white px-4 py-2.5">
-        <span className="rounded-full bg-teal-600 px-2 py-0.5 text-[10.5px] font-bold tracking-wide text-white">통화 요약</span>
+      <div className="flex items-center gap-2 border-b border-slate-100 bg-gradient-to-r from-brand-light/80 to-white px-4 py-2.5">
+        <span className="rounded-full bg-brand px-2 py-0.5 text-[10.5px] font-bold tracking-wide text-white">통화 요약</span>
         <span className="truncate text-[12.5px] font-semibold text-slate-600">{form.customer_name} 고객</span>
         <button
           type="button"
@@ -167,7 +167,7 @@ export default function CallSummaryCard({
               type="button"
               onClick={() => onSubmit(form)}
               disabled={submit.phase === "submitting"}
-              className="flex w-full items-center justify-center gap-2 rounded-2xl bg-teal-600 py-3 text-[14.5px] font-semibold text-white shadow-md shadow-teal-200 transition active:scale-[0.99] disabled:opacity-60"
+              className="flex w-full items-center justify-center gap-2 rounded-2xl bg-brand py-3 text-[14.5px] font-semibold text-white shadow-md shadow-brand/25 transition hover:bg-brand-dark active:scale-[0.99] disabled:opacity-60"
             >
               {submit.phase === "submitting" ? (
                 <>

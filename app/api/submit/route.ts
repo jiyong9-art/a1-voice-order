@@ -79,18 +79,27 @@ export async function POST(request: Request) {
 
       const result = {
         ok: true,
-        sheet: { skipped: false as boolean, reason: "", tab: "업무오더", row: undefined as number | undefined, url: sheetsUrl() ?? undefined },
+        sheet: {
+          skipped: false as boolean,
+          reason: "",
+          tab: "업무오더",
+          row: undefined as number | undefined,
+          url: sheetsUrl() ?? undefined,
+          target: undefined as "master" | "personal" | undefined,
+        },
         mail: { skipped: false as boolean, reason: "", to: [] as string[] },
         registeredAt,
       };
 
       if (!sheetsConfigured()) {
         result.sheet.skipped = true;
-        result.sheet.reason = "구글 시트가 아직 연결되지 않았습니다 (GOOGLE_SERVICE_ACCOUNT_JSON / GOOGLE_SPREADSHEET_ID).";
+        result.sheet.reason = "구글 시트가 아직 연결되지 않았습니다 (GOOGLE_APPS_SCRIPT_URL 또는 GOOGLE_SPREADSHEET_ID + GOOGLE_SERVICE_ACCOUNT_JSON).";
       } else {
         const appended = await appendOrderRow(order, sender, registeredAt);
         result.sheet.tab = appended.tab;
         result.sheet.row = appended.row;
+        result.sheet.url = appended.url ?? result.sheet.url;
+        result.sheet.target = appended.target;
       }
 
       const recipients: string[] = [];
@@ -130,18 +139,27 @@ export async function POST(request: Request) {
     const summary = normalizeSummary(body.data);
     const result = {
       ok: true,
-      sheet: { skipped: false as boolean, reason: "", tab: "통화요약", row: undefined as number | undefined, url: sheetsUrl() ?? undefined },
+      sheet: {
+        skipped: false as boolean,
+        reason: "",
+        tab: "통화요약",
+        row: undefined as number | undefined,
+        url: sheetsUrl() ?? undefined,
+        target: undefined as "master" | "personal" | undefined,
+      },
       mail: { skipped: false as boolean, reason: "", to: [] as string[] },
       registeredAt,
     };
 
     if (!sheetsConfigured()) {
       result.sheet.skipped = true;
-      result.sheet.reason = "구글 시트가 아직 연결되지 않았습니다 (GOOGLE_SERVICE_ACCOUNT_JSON / GOOGLE_SPREADSHEET_ID).";
+      result.sheet.reason = "구글 시트가 아직 연결되지 않았습니다 (GOOGLE_APPS_SCRIPT_URL 또는 GOOGLE_SPREADSHEET_ID + GOOGLE_SERVICE_ACCOUNT_JSON).";
     } else {
       const appended = await appendSummaryRow(summary, sender, registeredAt);
       result.sheet.tab = appended.tab;
       result.sheet.row = appended.row;
+      result.sheet.url = appended.url ?? result.sheet.url;
+      result.sheet.target = appended.target;
     }
 
     const to = Array.from(new Set([cfg.notifyEmail].filter(Boolean)));

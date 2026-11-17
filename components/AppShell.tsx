@@ -7,6 +7,7 @@ import type { CallSummaryResult, Mode, OrderResult, SubmitResponse } from "@/lib
 import logoWide from "@/public/logo-a1-wide.png";
 import CallSummaryCard from "./CallSummaryCard";
 import Composer from "./Composer";
+import MemberEditor from "./MemberEditor";
 import OrderCard, { type SubmitState } from "./OrderCard";
 import {
   AlertIcon,
@@ -16,6 +17,7 @@ import {
   PhoneIcon,
   SparkIcon,
   Spinner,
+  UsersIcon,
 } from "./icons";
 
 type Message =
@@ -76,6 +78,8 @@ export default function AppShell({
   const [focusTick, setFocusTick] = useState(0);
   const [toast, setToast] = useState<{ text: string; tone: "ok" | "warn" | "error" } | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [members, setMembers] = useState<string[]>(teamMembers);
+  const [membersOpen, setMembersOpen] = useState(false);
   const bottomRef = useRef<HTMLDivElement | null>(null);
   const toastTimer = useRef<number | null>(null);
 
@@ -113,6 +117,23 @@ export default function AppShell({
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
   }, [messages, phase]);
+
+  // 직원 명단은 구글 시트 ‘직원목록’ 기준으로 맞춥니다.
+  useEffect(() => {
+    let alive = true;
+    fetch("/api/members", { cache: "no-store" })
+      .then((res) => res.json())
+      .then((data: { members?: string[] }) => {
+        if (!alive || !Array.isArray(data.members)) return;
+        setMembers(data.members);
+      })
+      .catch(() => {
+        /* 실패하면 서버에서 받은 명단을 그대로 씁니다 */
+      });
+    return () => {
+      alive = false;
+    };
+  }, []);
 
   const push = useCallback((message: Message) => {
     setMessages((prev) => [...prev, message]);
@@ -311,7 +332,7 @@ export default function AppShell({
               onClick={() => setMenuOpen((v) => !v)}
               className="flex items-center gap-1.5 rounded-full bg-slate-100 py-1.5 pl-2.5 pr-2 text-[12px] font-semibold text-slate-600"
             >
-              <span className="flex h-5 w-5 items-center justify-center rounded-full bg-indigo-600 text-[10px] font-bold text-white">
+              <span className="flex h-5 w-5 items-center justify-center rounded-full bg-brand text-[10px] font-bold text-white">
                 {userName.slice(0, 1)}
               </span>
               {userName}
@@ -319,7 +340,7 @@ export default function AppShell({
             {menuOpen && (
               <div className="absolute right-0 top-11 z-30 w-56 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xl">
                 <div className="border-b border-slate-100 px-3 py-2 text-[11px] text-slate-400">
-                  팀원 {teamMembers.length}명 · {status.mock ? "모의 모드" : status.ai ? "AI 연결됨" : "AI 미연결"}
+                  팀원 {members.length}명 · {status.mock ? "모의 모드" : status.ai ? "AI 연결됨" : "AI 미연결"}
                 </div>
                 {status.spreadsheetUrl && (
                   <a
@@ -331,6 +352,16 @@ export default function AppShell({
                     업무오더 시트 열기
                   </a>
                 )}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMenuOpen(false);
+                    setMembersOpen(true);
+                  }}
+                  className="flex w-full items-center gap-2 border-t border-slate-100 px-3 py-2.5 text-left text-[13px] font-medium text-slate-700 hover:bg-slate-50"
+                >
+                  <UsersIcon className="h-4 w-4" /> 직원 관리
+                </button>
                 <button
                   type="button"
                   onClick={logout}
@@ -357,7 +388,7 @@ export default function AppShell({
                 type="button"
                 onClick={() => setMode(key)}
                 className={`flex flex-1 items-center justify-center gap-1.5 rounded-2xl py-2 text-[13px] font-semibold transition ${
-                  active ? "bg-indigo-600 text-white shadow-sm shadow-indigo-200" : "bg-slate-100 text-slate-500"
+                  active ? "bg-brand text-white shadow-sm shadow-brand/25" : "bg-slate-100 text-slate-500"
                 }`}
               >
                 <Icon className="h-4 w-4" />
@@ -384,7 +415,7 @@ export default function AppShell({
       <main className="a1-scroll flex-1 overflow-y-auto px-3.5 py-4">
         {messages.length === 0 && phase === "idle" && (
           <div className="mt-6 text-center">
-            <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-indigo-50 text-indigo-500">
+            <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-brand-light text-brand">
               <SparkIcon className="h-6 w-6" />
             </div>
             <h2 className="text-[15px] font-bold text-slate-800">{userName}님, 무엇을 시키실까요?</h2>
@@ -400,7 +431,7 @@ export default function AppShell({
                   key={example}
                   type="button"
                   onClick={() => setInput(example.replace("📎 ", ""))}
-                  className="w-full rounded-2xl border border-slate-200 bg-white px-3.5 py-2.5 text-left text-[12.5px] leading-5 text-slate-600 shadow-sm transition hover:border-indigo-200 hover:bg-indigo-50/40"
+                  className="w-full rounded-2xl border border-slate-200 bg-white px-3.5 py-2.5 text-left text-[12.5px] leading-5 text-slate-600 shadow-sm transition hover:border-brand-border hover:bg-brand-light/60"
                 >
                   {example}
                 </button>
@@ -415,7 +446,7 @@ export default function AppShell({
               return (
                 <div key={message.id} className="a1-fade-up flex justify-end">
                   <div className="max-w-[85%]">
-                    <div className="max-h-52 overflow-y-auto whitespace-pre-wrap break-words rounded-3xl rounded-br-lg bg-indigo-600 px-3.5 py-2.5 text-[14px] leading-6 text-white shadow-sm shadow-indigo-200">
+                    <div className="max-h-52 overflow-y-auto whitespace-pre-wrap break-words rounded-3xl rounded-br-lg bg-brand px-3.5 py-2.5 text-[14px] leading-6 text-white shadow-sm shadow-brand/25">
                       {message.text}
                     </div>
                     <p className="mt-1 text-right text-[10px] text-slate-400">{timeLabel(message.at)}</p>
@@ -499,6 +530,14 @@ export default function AppShell({
           </div>
         </div>
       )}
+
+      <MemberEditor
+        open={membersOpen}
+        members={members}
+        onClose={() => setMembersOpen(false)}
+        onMembersChange={setMembers}
+        sessionAuthed
+      />
 
       <Composer
         mode={mode}

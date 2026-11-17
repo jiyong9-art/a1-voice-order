@@ -23,6 +23,8 @@ export function appConfig() {
     spreadsheetId: readEnv("GOOGLE_SPREADSHEET_ID"),
     spreadsheetUrl: readEnv("GOOGLE_SPREADSHEET_URL"),
     serviceAccountJson: readEnv("GOOGLE_SERVICE_ACCOUNT_JSON"),
+    appsScriptUrl: readEnv("GOOGLE_APPS_SCRIPT_URL"),
+    appsScriptSecret: readEnv("GOOGLE_APPS_SCRIPT_SECRET"),
     openaiKey: readEnv("OPENAI_API_KEY"),
     transcribeModel: readEnv("OPENAI_TRANSCRIBE_MODEL") || "gpt-4o-transcribe",
     chatModel: readEnv("OPENAI_CHAT_MODEL") || "gpt-4o-mini",
@@ -64,10 +66,24 @@ export function defaultTeamMembers(): string[] {
   return envList.length > 0 ? envList : DEFAULT_TEAM_MEMBERS;
 }
 
+/**
+ * 구글 시트 연동 방식
+ * - apps_script: 구글 시트에 붙인 Apps Script 웹앱(가장 간단, 서비스 계정 키 불필요)
+ * - service_account: 서비스 계정 JSON으로 Sheets API 직접 호출
+ * - none: 연동 없음
+ */
+export type SheetsBackend = "apps_script" | "service_account" | "none";
+
+export function sheetsBackend(): SheetsBackend {
+  const c = appConfig();
+  if (c.appsScriptUrl) return "apps_script";
+  if (c.spreadsheetId && c.serviceAccountJson) return "service_account";
+  return "none";
+}
+
 /** 구글 시트 자동 기록이 가능한 상태인지 */
 export function sheetsConfigured(): boolean {
-  const c = appConfig();
-  return Boolean(c.spreadsheetId && c.serviceAccountJson);
+  return sheetsBackend() !== "none";
 }
 
 /** 메일 발송이 가능한 상태인지 */

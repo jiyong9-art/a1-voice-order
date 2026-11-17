@@ -29,7 +29,7 @@ export default async function LoginPage() {
           <p className="mt-1.5 text-sm text-slate-500">말로 지시하면 시트와 메일로 정리됩니다</p>
         </div>
 
-        <LoginForm teamMembers={defaultTeamMembers()} passcodeConfigured={isSet("APP_PASSCODE")} />
+        <LoginForm initialMembers={defaultTeamMembers()} passcodeConfigured={isSet("APP_PASSCODE")} />
 
         <p className="mt-6 text-center text-[11px] leading-relaxed text-slate-400">
           에이원코리아(A1KOREA) 사내 전용 · 팀 비밀번호를 아는 직원만 사용할 수 있습니다.

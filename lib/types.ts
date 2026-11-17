@@ -51,6 +51,8 @@ export interface SubmitResponse {
     tab?: string;
     row?: number;
     url?: string;
+    /** 작성자 전용 시트에 기록됐는지 */
+    target?: "master" | "personal";
   };
   mail: {
     skipped: boolean;

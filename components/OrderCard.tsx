@@ -12,7 +12,7 @@ export type SubmitState = {
 };
 
 const fieldClass =
-  "w-full rounded-xl border border-slate-200 bg-slate-50/70 px-3 py-2 text-[14px] leading-6 text-slate-800 outline-none transition focus:border-indigo-400 focus:bg-white focus:ring-4 focus:ring-indigo-50";
+  "w-full rounded-xl border border-slate-200 bg-slate-50/70 px-3 py-2 text-[14px] leading-6 text-slate-800 outline-none transition focus:border-brand focus:bg-white focus:ring-4 focus:ring-brand-border/60";
 
 export default function OrderCard({
   data,
@@ -31,8 +31,8 @@ export default function OrderCard({
 
   return (
     <div className="a1-fade-up overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-[0_8px_28px_-18px_rgba(15,23,42,0.35)]">
-      <div className="flex items-center gap-2 border-b border-slate-100 bg-gradient-to-r from-indigo-50/80 to-white px-4 py-2.5">
-        <span className="rounded-full bg-indigo-600 px-2 py-0.5 text-[10.5px] font-bold tracking-wide text-white">업무 오더</span>
+      <div className="flex items-center gap-2 border-b border-slate-100 bg-gradient-to-r from-brand-light/80 to-white px-4 py-2.5">
+        <span className="rounded-full bg-brand px-2 py-0.5 text-[10.5px] font-bold tracking-wide text-white">업무 오더</span>
         <span className={`rounded-full px-2 py-0.5 text-[10.5px] font-bold ring-1 ${priorityTone(form.priority)}`}>
           {form.priority}
         </span>
@@ -135,7 +135,7 @@ export default function OrderCard({
               type="button"
               onClick={() => onSubmit(form)}
               disabled={submit.phase === "submitting"}
-              className="flex w-full items-center justify-center gap-2 rounded-2xl bg-indigo-600 py-3 text-[14.5px] font-semibold text-white shadow-md shadow-indigo-200 transition active:scale-[0.99] disabled:opacity-60"
+              className="flex w-full items-center justify-center gap-2 rounded-2xl bg-brand py-3 text-[14.5px] font-semibold text-white shadow-md shadow-brand/25 transition hover:bg-brand-dark active:scale-[0.99] disabled:opacity-60"
             >
               {submit.phase === "submitting" ? (
                 <>
@@ -174,7 +174,10 @@ export function DoneState({ result }: { result: SubmitResponse }) {
             </>
           ) : (
             <>
-              <b>‘{result.sheet.tab}’ 시트 {result.sheet.row ? `${result.sheet.row}행` : "새 행"}에 기록했습니다.</b>
+              <b>
+                ‘{result.sheet.tab}’ {result.sheet.target === "personal" ? "내 전용 시트" : "시트"}{" "}
+                {result.sheet.row ? `${result.sheet.row}행` : "새 행"}에 기록했습니다.
+              </b>
               {result.sheet.url && (
                 <a
                   href={result.sheet.url}
