@@ -1,0 +1,95 @@
+@import "tailwindcss";
+
+:root {
+  color-scheme: light;
+  --brand: #4f46e5;
+}
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  background:
+    radial-gradient(1100px 520px at 50% -180px, #eef2ff 0%, rgba(238, 242, 255, 0) 70%),
+    #f8fafc;
+  color: #0f172a;
+  -webkit-font-smoothing: antialiased;
+  -webkit-tap-highlight-color: transparent;
+  font-family:
+    -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Pretendard", "Malgun Gothic", "Noto Sans KR",
+    system-ui, "Segoe UI", sans-serif;
+}
+
+/* 하단 홈 인디케이터 영역 확보 */
+.pb-safe {
+  padding-bottom: max(env(safe-area-inset-bottom), 0.5rem);
+}
+.pt-safe {
+  padding-top: max(env(safe-area-inset-top), 0rem);
+}
+
+/* 녹음 중 파형 */
+@keyframes inu-bar {
+  0%,
+  100% {
+    transform: scaleY(0.35);
+    opacity: 0.55;
+  }
+  50% {
+    transform: scaleY(1);
+    opacity: 1;
+  }
+}
+.inu-bar {
+  animation: inu-bar 0.9s ease-in-out infinite;
+  transform-origin: center;
+}
+
+@keyframes inu-fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.inu-fade-up {
+  animation: inu-fade-up 0.22s ease-out both;
+}
+
+@keyframes inu-ping {
+  0% {
+    transform: scale(0.9);
+    opacity: 0.55;
+  }
+  70%,
+  100% {
+    transform: scale(1.5);
+    opacity: 0;
+  }
+}
+.inu-ping::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 9999px;
+  background: rgba(239, 68, 68, 0.35);
+  animation: inu-ping 1.4s cubic-bezier(0, 0, 0.2, 1) infinite;
+}
+
+/* 스크롤바 정리 */
+.inu-scroll::-webkit-scrollbar {
+  width: 6px;
+}
+.inu-scroll::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 999px;
+}
+
+textarea {
+  field-sizing: content;
+}
