@@ -54,7 +54,7 @@ function timeLabel(iso: string): string {
 const EXAMPLES: Record<Mode, string[]> = {
   order: [
     "내일 오전까지 에이원코리아 견적서 수정본 보내줘",
-    "석빈이 생일선물로 무선 이어폰 알아보고 가격 비교해줘",
+    "김대리 내일 오전까지 대성물류 화재보험 견적서 정리해서 보내줘",
     "이번 주 금요일까지 블로그 글 2편 예약 발행 확인해줘",
   ],
   call_summary: [
