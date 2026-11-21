@@ -1,6 +1,6 @@
 import OpenAI from "openai";
-import { appConfig, defaultTeamMembers, isSet, vocabularyHints, vocabularyPrompt } from "@/lib/env";
-import { looksLikePromptEcho } from "@/lib/audio-guard";
+import { appConfig, defaultTeamMembers, isSet, transcriptionPrompt, vocabularyHints } from "@/lib/env";
+import { looksLikeHallucination } from "@/lib/audio-guard";
 import type { CallSummaryResult, OrderResult, Priority } from "@/lib/types";
 import { PRIORITIES, todayInSeoul } from "@/lib/types";
 
@@ -61,18 +61,18 @@ export type TranscriptionResult = {
   text: string;
   model: string;
   mocked?: boolean;
-  /** 말소리가 아니라 고유명사 힌트를 읽은 것으로 판단해 비운 경우 (v1.8) */
-  silenced?: "prompt_echo";
+  /** 말소리가 아니라 빈칸·환각으로 판단해 비운 경우 (v1.8~) */
+  silenced?: "prompt_echo" | "hallucination";
 };
 
 /**
- * 모델이 돌려준 글에서 '빈칸 환각'(프롬프트를 그대로 읽은 문장)을 걸러낸다 (v1.8).
- * 예: 무음 파일 → "에이원코리아입니다" / "유병헌 과장님".
+ * 모델이 돌려준 글에서 빈칸 환각을 걸러낸다 (v1.9).
+ * 예: 무음/잡음 → "에이원코리아입니다", 고유명사 목록 전체, "This is a clean audio.", "Thank you."
  */
-function finalizeText(text: string, model: string): TranscriptionResult {
+function finalizeText(text: string, model: string, prompt: string): TranscriptionResult {
   const trimmed = (text ?? "").trim();
-  if (trimmed && looksLikePromptEcho(trimmed, vocabularyHints())) {
-    return { text: "", model, silenced: "prompt_echo" };
+  if (trimmed && looksLikeHallucination(trimmed, vocabularyHints(), prompt)) {
+    return { text: "", model, silenced: "hallucination" };
   }
   return { text: trimmed, model };
 }
@@ -97,8 +97,10 @@ export async function transcribeAudio(
   }
 
   const c = appConfig();
-  // v1.8: 문장 대신 짧은 고유명사 목록만 힌트로 준다. 문장형 힌트는 무음에서 그대로 읽히기 쉽다.
-  const prompt = vocabularyPrompt();
+  // v1.9: 자연스러운 한국어 업무 문맥 문장을 힌트로 준다(짧은 용어 목록 포함).
+  //  - 문장형이라 적응이 좋고, 목록이 문장이 아니어서 생기던 '목록 에코'가 줄어든다.
+  //  - 환각은 audio-guard 의 에너지 게이트 + 글 단계 필터가 막는다.
+  const prompt = transcriptionPrompt();
 
   const attempt = async (model: string) => {
     const params: Record<string, unknown> = {
@@ -117,13 +119,13 @@ export async function transcribeAudio(
 
   try {
     const text = await attempt(c.transcribeModel);
-    return finalizeText(text, c.transcribeModel);
+    return finalizeText(text, c.transcribeModel, prompt);
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     // 모델 접근 권한이 없거나 이름이 바뀐 경우 whisper-1로 한 번 더 시도합니다.
     if (c.transcribeModel !== "whisper-1" && /model|not found|does not exist|invalid|unsupported/i.test(message)) {
       const text = await attempt("whisper-1");
-      return finalizeText(text, "whisper-1");
+      return finalizeText(text, "whisper-1", prompt);
     }
     throw err;
   }

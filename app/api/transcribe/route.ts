@@ -82,12 +82,12 @@ export async function POST(request: Request) {
   try {
     const result = await transcribeAudio(audio, { mode });
     if (!result.text) {
-      if (result.silenced === "prompt_echo") {
+      if (result.silenced) {
         return NextResponse.json({
           ok: true,
           text: "",
           silent: true,
-          reason: "prompt_echo",
+          reason: result.silenced,
           error: "말소리가 들리지 않았습니다. 다시 말씀해 주세요.",
           model: result.model,
         });
