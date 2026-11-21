@@ -3,41 +3,54 @@
     android:layout_width="wrap_content"
     android:layout_height="wrap_content"
     android:orientation="vertical"
-    android:gravity="center_horizontal">
+    android:gravity="center_horizontal"
+    android:clipChildren="false"
+    android:clipToPadding="false">
 
     <FrameLayout
-        android:layout_width="62dp"
-        android:layout_height="62dp">
+        android:layout_width="80dp"
+        android:layout_height="80dp"
+        android:clipChildren="false"
+        android:clipToPadding="false">
 
+        <!-- 녹음 중에만 보이는 하늘색 테두리 펄스 -->
+        <View
+            android:id="@+id/bubble_ring"
+            android:layout_width="62dp"
+            android:layout_height="62dp"
+            android:layout_gravity="center"
+            android:background="@drawable/bg_bubble_ring"
+            android:visibility="gone"/>
+
+        <!-- 평상시: 다크네이비 원 (테두리·그림자 없음) -->
         <View
             android:id="@+id/bubble_circle"
-            android:layout_width="match_parent"
-            android:layout_height="match_parent"
-            android:background="@drawable/bg_bubble"
-            android:elevation="8dp"/>
-
-        <TextView
-            android:id="@+id/bubble_text"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
+            android:layout_width="62dp"
+            android:layout_height="62dp"
             android:layout_gravity="center"
-            android:text="A1"
-            android:textColor="@color/white"
-            android:textSize="19sp"
-            android:textStyle="bold"
-            android:letterSpacing="0.06"/>
+            android:background="@drawable/bg_bubble"/>
+
+        <!-- 가운데 흰색 마이크 -->
+        <ImageView
+            android:id="@+id/bubble_mic"
+            android:layout_width="26dp"
+            android:layout_height="26dp"
+            android:layout_gravity="center"
+            android:src="@drawable/ic_mic_white"
+            android:contentDescription="A1 음성"/>
     </FrameLayout>
 
     <TextView
         android:id="@+id/bubble_state"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_marginTop="6dp"
+        android:layout_marginTop="2dp"
         android:background="@drawable/bg_pill_dark"
         android:paddingLeft="10dp"
         android:paddingRight="10dp"
         android:paddingTop="3dp"
         android:paddingBottom="3dp"
+        android:gravity="center"
         android:textColor="@color/white"
         android:textSize="11sp"
         android:textStyle="bold"

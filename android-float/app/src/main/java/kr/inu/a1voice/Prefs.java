@@ -7,7 +7,8 @@ import android.content.SharedPreferences;
 public final class Prefs {
 
     public static final String DEFAULT_SERVER = "https://a1-voice-order.vercel.app";
-    public static final String DEFAULT_NAME = "문지용";
+    /** 이름 기본값은 비워 둔다 — 저장된 값이 있을 때만 채운다. */
+    public static final String DEFAULT_NAME = "";
 
     public static final String K_NAME = "name";
     public static final String K_PASS = "pass";

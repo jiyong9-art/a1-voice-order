@@ -11,6 +11,8 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.content.pm.ServiceInfo;
+import android.animation.ValueAnimator;
+import android.graphics.Color;
 import android.graphics.PixelFormat;
 import android.media.MediaRecorder;
 import android.os.Build;
@@ -28,14 +30,20 @@ import android.view.LayoutInflater;
 import android.view.MotionEvent;
 import android.view.View;
 import android.view.WindowManager;
+import android.view.animation.LinearInterpolator;
 import android.view.inputmethod.InputMethodManager;
 import android.widget.EditText;
 import android.widget.ProgressBar;
 import android.widget.TextView;
+import android.widget.Toast;
 
 import java.io.File;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+
+import android.text.SpannableString;
+import android.text.Spanned;
+import android.text.style.ForegroundColorSpan;
 
 /**
  * 화면 위에 뜨는 A1 동그라미 + 녹음 + 변환 팝업을 담당하는 포그라운드 서비스.
@@ -59,6 +67,8 @@ public class OverlayService extends Service {
     private WindowManager wm;
     private View bubbleRoot;
     private View bubbleCircle;
+    private View bubbleRing;
+    private ValueAnimator pulse;
     private TextView bubbleState;
     private WindowManager.LayoutParams bubbleParams;
     private GestureDetector detector;
@@ -93,7 +103,7 @@ public class OverlayService extends Service {
                 return;
             }
             long s = (SystemClock.elapsedRealtime() - recStartMs) / 1000;
-            bubbleState.setText(String.format("● %d:%02d", s / 60, s % 60));
+            setTimerText(s);
             ui.postDelayed(this, 250);
         }
     };
@@ -122,6 +132,14 @@ public class OverlayService extends Service {
         startForegroundNotice();
         if (!Settings.canDrawOverlays(this)) {
             running = false;
+            stopSelf();
+            return;
+        }
+        // 로그인 확인(세션 쿠키) 전에는 동그라미를 띄우지 않는다.
+        String cookie = Prefs.get(this, Prefs.K_COOKIE, "");
+        if (cookie == null || cookie.trim().isEmpty()) {
+            running = false;
+            Toast.makeText(this, "A1 음성: 먼저 앱에서 로그인해 주세요.", Toast.LENGTH_LONG).show();
             stopSelf();
             return;
         }
@@ -172,6 +190,7 @@ public class OverlayService extends Service {
     public void onDestroy() {
         running = false;
         ui.removeCallbacksAndMessages(null);
+        stopPulse();
         if (recording) {
             recording = false;
             try {
@@ -245,6 +264,7 @@ public class OverlayService extends Service {
         }
         bubbleRoot = LayoutInflater.from(this).inflate(R.layout.overlay_bubble, null);
         bubbleCircle = bubbleRoot.findViewById(R.id.bubble_circle);
+        bubbleRing = bubbleRoot.findViewById(R.id.bubble_ring);
         bubbleState = (TextView) bubbleRoot.findViewById(R.id.bubble_state);
 
         int type = Build.VERSION.SDK_INT >= 26
@@ -359,6 +379,97 @@ public class OverlayService extends Service {
         }
     }
 
+    /** 녹음 중 타이머: 은은한 하늘색 점 + 시간 (빨간색 표시 없음) */
+    private void setTimerText(long seconds) {
+        if (bubbleState == null) {
+            return;
+        }
+        String time = String.format("%d:%02d", seconds / 60, seconds % 60);
+        SpannableString ss = new SpannableString("● " + time);
+        ss.setSpan(new ForegroundColorSpan(Color.parseColor("#7FD4FF")),
+                0, 1, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+        bubbleState.setText(ss);
+        bubbleState.setVisibility(View.VISIBLE);
+    }
+
+    /** 녹음 중에만 동그라미 바깥으로 은은한 하늘색 테두리 빛이 돈다. */
+    private void startPulse() {
+        if (bubbleRing == null) {
+            return;
+        }
+        stopPulse();
+        bubbleRing.setVisibility(View.VISIBLE);
+        bubbleRing.setScaleX(1f);
+        bubbleRing.setScaleY(1f);
+        bubbleRing.setAlpha(0.9f);
+        pulse = ValueAnimator.ofFloat(0f, 1f);
+        pulse.setDuration(1500);
+        pulse.setRepeatCount(ValueAnimator.INFINITE);
+        pulse.setInterpolator(new LinearInterpolator());
+        pulse.addUpdateListener(new ValueAnimator.AnimatorUpdateListener() {
+            @Override
+            public void onAnimationUpdate(ValueAnimator a) {
+                if (bubbleRing == null) {
+                    return;
+                }
+                float t = (Float) a.getAnimatedValue();
+                float scale = 1f + 0.24f * t;
+                bubbleRing.setScaleX(scale);
+                bubbleRing.setScaleY(scale);
+                bubbleRing.setAlpha(0.9f * (1f - t));
+            }
+        });
+        pulse.start();
+    }
+
+    private void stopPulse() {
+        if (pulse != null) {
+            try {
+                pulse.cancel();
+            } catch (Exception ignored) {
+            }
+            pulse = null;
+        }
+        if (bubbleRing != null) {
+            bubbleRing.setVisibility(View.GONE);
+        }
+    }
+
+    /**
+     * 접근성이 켜져 있을 때: 팝업 없이 지금 입력칸에 바로 넣는다.
+     * 입력칸을 못 찾으면 기존처럼 복사 + 확인 팝업으로 넘어간다.
+     */
+    private void insertDirect(final String text) {
+        // 이전에 떠 있던 결과 팝업이 있으면 정리하고 동그라미만 남긴다.
+        if (popupRoot != null) {
+            removePopup();
+            if (bubbleRoot != null) {
+                bubbleRoot.setVisibility(View.VISIBLE);
+            }
+        }
+        final Context app = getApplicationContext();
+        io.execute(new Runnable() {
+            @Override
+            public void run() {
+                final boolean done = A1VoiceAccessibilityService.insertText(app, text);
+                ui.post(new Runnable() {
+                    @Override
+                    public void run() {
+                        if (done) {
+                            if (recFile != null) {
+                                recFile.delete();
+                            }
+                            showState("입력했어요 ✓", 1800);
+                            Toast.makeText(OverlayService.this, "입력했어요", Toast.LENGTH_SHORT).show();
+                        } else {
+                            setResult(text);
+                        }
+                    }
+                });
+            }
+        });
+    }
+
     /* ------------------------------------------------------------------ */
     /* 녹음                                                               */
     /* ------------------------------------------------------------------ */
@@ -389,15 +500,15 @@ public class OverlayService extends Service {
 
             recording = true;
             recStartMs = SystemClock.elapsedRealtime();
-            bubbleCircle.setBackgroundResource(R.drawable.bg_bubble_rec);
-            showState("● 0:00", 0);
+            startPulse();
+            setTimerText(0);
             vibrate(45);
             ui.post(tick);
             ui.postDelayed(maxStop, MAX_MS);
         } catch (Exception e) {
             cleanupRecorder();
             recording = false;
-            bubbleCircle.setBackgroundResource(R.drawable.bg_bubble);
+            stopPulse();
             bubbleState.setVisibility(View.GONE);
             showMessage("녹음 시작 실패", readable(e));
         }
@@ -418,7 +529,7 @@ public class OverlayService extends Service {
         }
         cleanupRecorder();
 
-        bubbleCircle.setBackgroundResource(R.drawable.bg_bubble);
+        stopPulse();
         vibrate(25);
 
         if (dur < MIN_MS || recFile == null || !recFile.exists() || recFile.length() < 2000) {
@@ -452,7 +563,16 @@ public class OverlayService extends Service {
     /* ------------------------------------------------------------------ */
 
     private void transcribe(final File file) {
-        setBusy();
+        // 접근성이 켜져 있으면 결과 팝업 없이 입력칸에 바로 넣는다.
+        final boolean direct = A1VoiceAccessibilityService.isEnabled(this);
+        if (direct) {
+            if (bubbleState != null) {
+                bubbleState.setText("변환 중…");
+                bubbleState.setVisibility(View.VISIBLE);
+            }
+        } else {
+            setBusy();
+        }
         final String name = Prefs.get(this, Prefs.K_NAME, Prefs.DEFAULT_NAME);
         final String pass = Prefs.get(this, Prefs.K_PASS, "");
         final String server = Prefs.get(this, Prefs.K_SERVER, Prefs.DEFAULT_SERVER);
@@ -466,7 +586,11 @@ public class OverlayService extends Service {
                     public void run() {
                         if (out.ok) {
                             copyToClipboard(out.text);
-                            setResult(out.text);
+                            if (direct) {
+                                insertDirect(out.text);
+                            } else {
+                                setResult(out.text);
+                            }
                         } else {
                             setError(out.error);
                         }

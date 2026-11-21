@@ -36,6 +36,26 @@ public final class Transcriber {
         }
     }
 
+    /** 로그인 시도 결과: 성공(쿠키) · 비밀번호 틀림(401) · 서버 연결 실패(0) 를 구분한다. */
+    public static final class LoginOut {
+        public final String cookie;
+        public final int code;
+
+        LoginOut(String cookie, int code) {
+            this.cookie = cookie;
+            this.code = code;
+        }
+
+        public boolean ok() {
+            return cookie != null && !cookie.trim().isEmpty();
+        }
+
+        /** 네트워크에 아예 못 닿았는지 (비밀번호 문제와 구분). */
+        public boolean offline() {
+            return code == 0;
+        }
+    }
+
     private static final class Resp {
         final int code;
         final String body;
@@ -75,7 +95,7 @@ public final class Transcriber {
             Resp r = postAudio(base + "/api/transcribe", audio, cookie, null);
 
             if (r.code == 401) {
-                String fresh = login(base, name, passcode);
+                String fresh = login(base, name, passcode).cookie;
                 if (fresh == null || fresh.isEmpty()) {
                     return new Out(false, null, "서버 로그인에 실패했습니다. 팀 비밀번호를 확인해 주세요.");
                 }
@@ -162,6 +182,11 @@ public final class Transcriber {
 
     /** 로그인만 시험해 본다(설정 화면의 '연결 확인'). 성공하면 쿠키 값을 돌려준다. */
     public static String checkLogin(String server, String name, String passcode) {
+        return login(normalizeBase(server), name, passcode).cookie;
+    }
+
+    /** 로그인 결과를 자세히(성공/비번 틀림/연결 실패) 돌려준다. */
+    public static LoginOut checkLoginDetailed(String server, String name, String passcode) {
         return login(normalizeBase(server), name, passcode);
     }
 
@@ -169,7 +194,7 @@ public final class Transcriber {
     /* 로그인                                                             */
     /* ---------------------------------------------------------------- */
 
-    private static String login(String base, String name, String passcode) {
+    private static LoginOut login(String base, String name, String passcode) {
         HttpURLConnection conn = null;
         try {
             URL url = new URL(base + "/api/auth/login");
@@ -182,7 +207,7 @@ public final class Transcriber {
             conn.setRequestProperty("Accept", "application/json");
 
             JSONObject body = new JSONObject();
-            body.put("name", name == null || name.trim().isEmpty() ? Prefs.DEFAULT_NAME : name.trim());
+            body.put("name", name == null ? "" : name.trim());
             body.put("passcode", passcode == null ? "" : passcode.trim());
 
             byte[] bytes = body.toString().getBytes(StandardCharsets.UTF_8);
@@ -193,12 +218,12 @@ public final class Transcriber {
 
             int code = conn.getResponseCode();
             if (code < 200 || code >= 300) {
-                return null;
+                return new LoginOut(null, code);
             }
             String setCookie = conn.getHeaderField("Set-Cookie");
-            return cookieValue(setCookie);
+            return new LoginOut(cookieValue(setCookie), code);
         } catch (Exception e) {
-            return null;
+            return new LoginOut(null, 0);
         } finally {
             if (conn != null) {
                 conn.disconnect();

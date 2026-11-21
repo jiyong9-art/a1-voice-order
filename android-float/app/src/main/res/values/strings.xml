@@ -2,4 +2,7 @@
 <resources>
     <string name="app_name">A1 음성</string>
     <string name="noti_channel">A1 음성 플로팅</string>
+    <string name="accessibility_label">A1 음성 입력칸 넣기</string>
+    <string name="accessibility_summary">변환된 글자를 지금 커서가 있는 입력칸에 바로 넣습니다.</string>
+    <string name="accessibility_desc">말한 내용을 글자로 바꾼 뒤, 카톡·문자·네이트온 같은 앱에서 지금 커서가 있는 입력칸을 찾아 글자를 바로 넣습니다. 입력칸을 찾지 못하면 지금처럼 복사 창이 뜹니다. 화면의 다른 내용은 저장하거나 보내지 않습니다.</string>
 </resources>

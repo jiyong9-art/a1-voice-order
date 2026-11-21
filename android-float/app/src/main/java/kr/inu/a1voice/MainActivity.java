@@ -17,7 +17,11 @@ import android.widget.EditText;
 import android.widget.TextView;
 import android.widget.Toast;
 
-/** 앱 첫 화면: 권한 준비 · 서버 설정 · 플로팅 켜기/끄기. */
+/**
+ * 앱 첫 화면: 로그인 · 권한 준비 · 서버 설정 · 플로팅 켜기/끄기.
+ *
+ * v1.2 부터는 서버 로그인(200 OK + 세션 쿠키)이 확인된 뒤에만 플로팅이 켜진다.
+ */
 public class MainActivity extends Activity {
 
     private static final int REQ_MIC = 11;
@@ -31,6 +35,8 @@ public class MainActivity extends Activity {
     private TextView btnNoti;
     private TextView tvBattery;
     private TextView btnBattery;
+    private TextView tvAccess;
+    private TextView btnAccess;
     private EditText etName;
     private EditText etPass;
     private EditText etServer;
@@ -41,9 +47,12 @@ public class MainActivity extends Activity {
 
     private final Handler ui = new Handler(Looper.getMainLooper());
     private boolean autoStartTried = false;
+    private boolean silentLoginTried = false;
+    private boolean loginBusy = false;
 
     private final int okColor = Color.parseColor("#2E7D32");
     private final int warnColor = Color.parseColor("#C62828");
+    private final int infoColor = Color.parseColor("#2F6FB2");
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -58,6 +67,8 @@ public class MainActivity extends Activity {
         btnNoti = (TextView) findViewById(R.id.btn_noti);
         tvBattery = (TextView) findViewById(R.id.tv_battery);
         btnBattery = (TextView) findViewById(R.id.btn_battery);
+        tvAccess = (TextView) findViewById(R.id.tv_access);
+        btnAccess = (TextView) findViewById(R.id.btn_access);
         etName = (EditText) findViewById(R.id.et_name);
         etPass = (EditText) findViewById(R.id.et_pass);
         etServer = (EditText) findViewById(R.id.et_server);
@@ -66,10 +77,9 @@ public class MainActivity extends Activity {
         btnToggle = (TextView) findViewById(R.id.btn_toggle);
         tvToggleHint = (TextView) findViewById(R.id.tv_toggle_hint);
 
-        etName.setText(Prefs.get(this, Prefs.K_NAME, Prefs.DEFAULT_NAME));
-        String savedPass = Prefs.get(this, Prefs.K_PASS, "");
-        // 팀 비밀번호는 저장소에 넣지 않는다 — 첫 실행 때 한 번 입력하면 Prefs 에 저장된다.
-        etPass.setText(savedPass);
+        // 이름·비밀번호는 기본값 없이 빈칸 — 저장된 값이 있을 때만 채운다.
+        etName.setText(Prefs.get(this, Prefs.K_NAME, ""));
+        etPass.setText(Prefs.get(this, Prefs.K_PASS, ""));
         etServer.setText(Prefs.get(this, Prefs.K_SERVER, Prefs.DEFAULT_SERVER));
 
         btnOverlay.setOnClickListener(new View.OnClickListener() {
@@ -96,6 +106,12 @@ public class MainActivity extends Activity {
                 openBatterySettings();
             }
         });
+        btnAccess.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                openAccessibilitySettings();
+            }
+        });
         btnSave.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
@@ -114,10 +130,20 @@ public class MainActivity extends Activity {
     protected void onResume() {
         super.onResume();
         refresh();
-        // 아이콘을 눌러 앱을 열었을 때 권한이 다 준비돼 있으면 바로 플로팅을 띄운다.
+        // 쿠키가 없고 저장된 이름·비번이 있으면 조용히 한 번 로그인해 본다.
+        if (!silentLoginTried) {
+            silentLoginTried = true;
+            String name = Prefs.get(this, Prefs.K_NAME, "");
+            String pass = Prefs.get(this, Prefs.K_PASS, "");
+            if (!isLoggedIn() && !name.trim().isEmpty() && !pass.trim().isEmpty()) {
+                startLogin(name, pass, Prefs.get(this, Prefs.K_SERVER, Prefs.DEFAULT_SERVER), false, false);
+            }
+        }
+        // 아이콘을 눌러 앱을 열었을 때, 로그인·권한이 다 준비돼 있으면 바로 플로팅을 띄운다.
         if (!autoStartTried) {
             autoStartTried = true;
             if (!OverlayService.running
+                    && isLoggedIn()
                     && Settings.canDrawOverlays(this)
                     && checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
                 startFloating(false);
@@ -126,6 +152,11 @@ public class MainActivity extends Activity {
     }
 
     /* ------------------------------------------------------------------ */
+
+    private boolean isLoggedIn() {
+        String cookie = Prefs.get(this, Prefs.K_COOKIE, "");
+        return cookie != null && !cookie.trim().isEmpty();
+    }
 
     private void refresh() {
         boolean overlay = Settings.canDrawOverlays(this);
@@ -156,13 +187,42 @@ public class MainActivity extends Activity {
         tvBattery.setText(noOpt ? "제외됨" : "권장 (삼성 배터리 절약에서 살아남기)");
         tvBattery.setTextColor(noOpt ? okColor : Color.parseColor("#8A6D1F"));
 
+        boolean access = A1VoiceAccessibilityService.isEnabled(this);
+        tvAccess.setText(access
+                ? "켜짐 · 변환되면 입력칸에 바로 들어가요"
+                : "꺼짐 · 켜면 카톡 입력칸에 바로 (안 켜면 복사 창)");
+        tvAccess.setTextColor(access ? okColor : Color.parseColor("#8A6D1F"));
+        btnAccess.setText(access ? "설정" : "설정 열기");
+        btnAccess.setBackgroundResource(access ? R.drawable.bg_btn_small_on : R.drawable.bg_btn_small);
+
+        boolean loggedIn = isLoggedIn();
         boolean on = OverlayService.running;
-        btnToggle.setText(on ? "플로팅 끄기" : "플로팅 켜기");
-        btnToggle.setBackgroundResource(on ? R.drawable.bg_btn_off : R.drawable.bg_btn_primary);
-        tvToggleHint.setText(on
-                ? "지금 A1 동그라미가 떠 있어요. 다른 앱을 열어도 위에 남습니다."
-                : "켜 두면 다른 앱을 써도 A1이 화면 위에 떠 있어요.");
+        if (loginBusy) {
+            btnToggle.setText("로그인 확인 중…");
+            btnToggle.setBackgroundResource(R.drawable.bg_btn_off);
+        } else if (on) {
+            btnToggle.setText("플로팅 끄기");
+            btnToggle.setBackgroundResource(R.drawable.bg_btn_off);
+        } else if (loggedIn) {
+            btnToggle.setText("플로팅 켜기");
+            btnToggle.setBackgroundResource(R.drawable.bg_btn_primary);
+        } else {
+            btnToggle.setText("🔒 로그인 후 플로팅 켜기");
+            btnToggle.setBackgroundResource(R.drawable.bg_btn_off);
+        }
+
+        if (on) {
+            tvToggleHint.setText("지금 A1 동그라미가 떠 있어요. 다른 앱을 열어도 위에 남습니다.");
+        } else if (!loggedIn) {
+            tvToggleHint.setText("이름과 팀 비밀번호를 넣고 [저장]을 누르면 서버 로그인을 확인한 뒤 켜집니다.");
+        } else {
+            tvToggleHint.setText("켜 두면 다른 앱을 써도 A1이 화면 위에 떠 있어요.");
+        }
     }
+
+    /* ------------------------------------------------------------------ */
+    /* 권한 · 설정 열기                                                     */
+    /* ------------------------------------------------------------------ */
 
     private void openOverlaySettings() {
         try {
@@ -174,6 +234,22 @@ public class MainActivity extends Activity {
                 startActivity(new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION));
             } catch (Exception ignored) {
                 Toast.makeText(this, "설정에서 '다른 앱 위에 표시'를 직접 허용해 주세요.", Toast.LENGTH_LONG).show();
+            }
+        }
+    }
+
+    private void openAccessibilitySettings() {
+        if (A1VoiceAccessibilityService.isEnabled(this)) {
+            Toast.makeText(this, "이미 켜져 있어요. 말이 끝나면 입력칸에 바로 들어갑니다.", Toast.LENGTH_SHORT).show();
+        } else {
+            Toast.makeText(this, "목록에서 'A1 음성 입력칸 넣기'를 찾아 켜 주세요.", Toast.LENGTH_LONG).show();
+        }
+        try {
+            startActivity(new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS));
+        } catch (Exception e) {
+            try {
+                startActivity(new Intent(Settings.ACTION_SETTINGS));
+            } catch (Exception ignored) {
             }
         }
     }
@@ -220,6 +296,8 @@ public class MainActivity extends Activity {
     }
 
     /* ------------------------------------------------------------------ */
+    /* 로그인 저장                                                          */
+    /* ------------------------------------------------------------------ */
 
     private void saveSettings() {
         String name = etName.getText().toString().trim();
@@ -227,39 +305,84 @@ public class MainActivity extends Activity {
         String server = Transcriber.normalizeBase(etServer.getText().toString());
 
         if (name.isEmpty()) {
-            name = Prefs.DEFAULT_NAME;
-            etName.setText(name);
+            tvSave.setText("이름을 넣어 주세요");
+            tvSave.setTextColor(warnColor);
+            etName.requestFocus();
+            return;
         }
+
         Prefs.put(this, Prefs.K_NAME, name);
         Prefs.put(this, Prefs.K_PASS, pass);
         Prefs.put(this, Prefs.K_SERVER, server);
-        Prefs.put(this, Prefs.K_COOKIE, "");
         etServer.setText(server);
 
         tvSave.setText("저장됨 · 서버 확인 중…");
-        final String fName = name;
-        final String fPass = pass;
-        final String fServer = server;
+        tvSave.setTextColor(infoColor);
+        startLogin(name, pass, server, true, false);
+    }
+
+    /** 서버에 로그인해 세션 쿠키를 받는다. 성공하면 쿠키 저장 + 화면 갱신. */
+    private void startLogin(final String name, final String pass, final String server,
+                            final boolean fromSave, final boolean thenStart) {
+        if (loginBusy) {
+            return;
+        }
+        loginBusy = true;
+        if (!fromSave) {
+            tvSave.setTextColor(infoColor);
+        }
+        if (thenStart) {
+            tvToggleHint.setText("서버에 로그인 확인 중…");
+        }
+        refresh();
+        final String base = Transcriber.normalizeBase(server);
         new Thread(new Runnable() {
             @Override
             public void run() {
-                final String cookie = Transcriber.checkLogin(fServer, fName, fPass);
+                final Transcriber.LoginOut r = Transcriber.checkLoginDetailed(base, name, pass);
                 ui.post(new Runnable() {
                     @Override
                     public void run() {
-                        if (cookie != null && !cookie.isEmpty()) {
-                            Prefs.put(MainActivity.this, Prefs.K_COOKIE, cookie);
-                            tvSave.setText("저장됨 · 서버 연결 성공 ✓");
+                        loginBusy = false;
+                        if (r.ok()) {
+                            Prefs.put(MainActivity.this, Prefs.K_COOKIE, r.cookie);
+                            tvSave.setText("로그인 확인 ✓ 플로팅을 켤 수 있어요");
                             tvSave.setTextColor(okColor);
+                        } else if (r.offline()) {
+                            // 서버에 못 닿은 것뿐이면, 이미 확인된 기기(쿠키 있음)는 그대로 쓴다.
+                            if (isLoggedIn()) {
+                                tvSave.setText("서버 연결 실패 · 저장된 로그인으로 계속");
+                                tvSave.setTextColor(Color.parseColor("#8A6D1F"));
+                            } else {
+                                tvSave.setText("서버에 연결하지 못했어요 (잠시 후 다시)");
+                                tvSave.setTextColor(warnColor);
+                            }
                         } else {
-                            tvSave.setText("저장됨 · 서버 연결 실패 (비밀번호·주소 확인)");
+                            Prefs.put(MainActivity.this, Prefs.K_COOKIE, "");
+                            tvSave.setText("로그인 실패 · 이름·비밀번호를 확인하세요");
                             tvSave.setTextColor(warnColor);
+                        }
+                        refresh();
+                        if (thenStart) {
+                            if (isLoggedIn()) {
+                                startFloating(true);
+                            } else {
+                                Toast.makeText(MainActivity.this,
+                                        r.offline()
+                                                ? "서버에 연결하지 못했어요. 인터넷을 확인한 뒤 다시 시도해 주세요."
+                                                : "로그인 확인에 실패했어요. 이름과 팀 비밀번호를 확인해 주세요.",
+                                        Toast.LENGTH_LONG).show();
+                            }
                         }
                     }
                 });
             }
         }).start();
     }
+
+    /* ------------------------------------------------------------------ */
+    /* 플로팅 켜기/끄기                                                     */
+    /* ------------------------------------------------------------------ */
 
     private void toggleFloating() {
         if (OverlayService.running) {
@@ -285,10 +408,41 @@ public class MainActivity extends Activity {
             askMic();
             return;
         }
-        startFloating(true);
+        if (loginBusy) {
+            Toast.makeText(this, "로그인 확인 중이에요. 잠시만요.", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        if (isLoggedIn()) {
+            startFloating(true);
+            return;
+        }
+
+        // 로그인 확인 전에는 켜지지 않는다.
+        String name = etName.getText().toString().trim();
+        String pass = etPass.getText().toString().trim();
+        if (name.isEmpty()) {
+            Toast.makeText(this, "이름을 넣어 주세요.", Toast.LENGTH_LONG).show();
+            etName.requestFocus();
+            return;
+        }
+        if (pass.isEmpty()) {
+            Toast.makeText(this, "팀 비밀번호를 넣어 주세요.", Toast.LENGTH_LONG).show();
+            etPass.requestFocus();
+            return;
+        }
+        String server = Transcriber.normalizeBase(etServer.getText().toString());
+        Prefs.put(this, Prefs.K_NAME, name);
+        Prefs.put(this, Prefs.K_PASS, pass);
+        Prefs.put(this, Prefs.K_SERVER, server);
+        startLogin(name, pass, server, true, true);
     }
 
     private void startFloating(final boolean showToast) {
+        if (!isLoggedIn()) {
+            Toast.makeText(this, "로그인 확인 후에 플로팅을 켤 수 있어요.", Toast.LENGTH_LONG).show();
+            refresh();
+            return;
+        }
         Intent i = new Intent(this, OverlayService.class);
         i.setAction(OverlayService.ACTION_START);
         if (Build.VERSION.SDK_INT >= 26) {

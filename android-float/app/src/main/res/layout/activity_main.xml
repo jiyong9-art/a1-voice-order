@@ -256,6 +256,50 @@
                     android:textSize="12sp"
                     android:textStyle="bold"/>
             </LinearLayout>
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="10dp"
+                android:orientation="horizontal"
+                android:gravity="center_vertical">
+
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:orientation="vertical">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="입력칸 바로 넣기 (접근성)"
+                        android:textColor="@color/text_primary"
+                        android:textSize="14sp"/>
+
+                    <TextView
+                        android:id="@+id/tv_access"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="꺼짐 · 켜면 카톡 입력칸에 바로 들어가요"
+                        android:textColor="@color/text_secondary"
+                        android:textSize="11sp"/>
+                </LinearLayout>
+
+                <TextView
+                    android:id="@+id/btn_access"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:background="@drawable/bg_btn_small"
+                    android:paddingLeft="16dp"
+                    android:paddingRight="16dp"
+                    android:paddingTop="9dp"
+                    android:paddingBottom="9dp"
+                    android:text="설정 열기"
+                    android:textColor="@color/brand_blue"
+                    android:textSize="12sp"
+                    android:textStyle="bold"/>
+            </LinearLayout>
         </LinearLayout>
 
         <LinearLayout
@@ -376,7 +420,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="8dp"
-                android:text="1. 아래 버튼으로 A1 동그라미를 띄웁니다.\n2. 카톡·문자·네이트온 어디서든 A1을 두 번 톡톡 누릅니다.\n3. 말이 끝나면 A1을 한 번 누릅니다. (2분이 지나면 자동 종료)\n4. 잠시 뒤 뜨는 창의 글은 이미 복사돼 있어요. 입력칸을 길게 눌러 붙여넣기만 하면 끝!"
+                android:text="1. 이름과 팀 비밀번호를 넣고 [저장] → 로그인이 확인되면 아래 버튼으로 A1 동그라미를 띄웁니다.\n2. 카톡·문자·네이트온 어디서든 A1을 두 번 톡톡 누릅니다.\n3. 말이 끝나면 A1을 한 번 누릅니다. (2분이 지나면 자동 종료)\n4. 접근성을 켜 두면 말이 끝난 자리(입력칸)에 글자가 바로 들어갑니다. 꺼 두면 지금처럼 복사 창이 떠요."
                 android:textColor="@color/text_secondary"
                 android:textSize="12sp"
                 android:lineSpacingExtra="4dp"/>

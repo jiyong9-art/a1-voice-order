@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  A1 음성 접근성 서비스 설정.
+  - 화면 내용 읽기: 지금 포커스된 입력칸(EditText)을 찾기 위해서만 쓴다.
+  - 이벤트는 포커스/창 전환만 받는다 (글자 입력 내용은 수집하지 않는다).
+-->
+<accessibility-service xmlns:android="http://schemas.android.com/apk/res/android"
+    android:accessibilityEventTypes="typeViewFocused|typeWindowStateChanged"
+    android:accessibilityFeedbackType="feedbackGeneric"
+    android:accessibilityFlags="flagDefault|flagRetrieveInteractiveWindows"
+    android:canRetrieveWindowContent="true"
+    android:notificationTimeout="100"
+    android:description="@string/accessibility_desc"
+    android:summary="@string/accessibility_summary"/>

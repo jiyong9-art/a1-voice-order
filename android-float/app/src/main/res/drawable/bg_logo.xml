@@ -1,4 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- 앱 첫 화면 로고: 플로팅 동그라미와 같은 다크네이비 -->
 <shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="oval">
-    <gradient android:type="linear" android:angle="315" android:startColor="#3E86C9" android:endColor="#14365D"/>
+    <gradient android:type="linear" android:angle="315" android:startColor="#1E293B" android:endColor="#0F172A"/>
 </shape>
