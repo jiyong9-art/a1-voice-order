@@ -59,7 +59,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="2dp"
-                    android:text="두 번 톡톡 → 글로 · 길게 꾹 → 녹음 파일로"
+                    android:text="두 번 톡톡 → 글로 · 길게 꾹 → 끄기"
                     android:textColor="@color/text_secondary"
                     android:textSize="12sp"/>
             </LinearLayout>
@@ -300,6 +300,51 @@
                     android:textSize="12sp"
                     android:textStyle="bold"/>
             </LinearLayout>
+
+            <!-- v1.8 플로팅 위치 고정: 손이 자주 스치는 자리에서 배지가 움직이지 않게 -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="10dp"
+                android:orientation="horizontal"
+                android:gravity="center_vertical">
+
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:orientation="vertical">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="플로팅 위치 고정"
+                        android:textColor="@color/text_primary"
+                        android:textSize="14sp"/>
+
+                    <TextView
+                        android:id="@+id/tv_lock"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="이동 가능 · 끌어서 위치를 옮길 수 있어요"
+                        android:textColor="@color/text_secondary"
+                        android:textSize="11sp"/>
+                </LinearLayout>
+
+                <TextView
+                    android:id="@+id/btn_lock"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:background="@drawable/bg_btn_small"
+                    android:paddingLeft="16dp"
+                    android:paddingRight="16dp"
+                    android:paddingTop="9dp"
+                    android:paddingBottom="9dp"
+                    android:text="고정"
+                    android:textColor="@color/brand_blue"
+                    android:textSize="12sp"
+                    android:textStyle="bold"/>
+            </LinearLayout>
         </LinearLayout>
 
         <LinearLayout
@@ -420,7 +465,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="8dp"
-                android:text="1. 이름과 팀 비밀번호를 넣고 [저장] → 로그인이 확인되면 아래 버튼으로 A1 글자를 띄웁니다(배경 없이 A1만 떠요).\n2. 카톡·문자·네이트온 어디서든 A1을 두 번 톡톡 누르고 말합니다. 말하는 동안 A1 위에 작은 자막이 실시간으로 떠서 말한 내용을 바로 볼 수 있습니다.\n3. 말이 끝나면 A1을 한 번 누릅니다. 자막 창이 닫히고 정확한 글자(OpenAI)로 바뀌어 입력칸에 들어갑니다. (2분이 지나면 자동 종료)\n4. 접근성을 켜 두면 말이 끝난 자리(입력칸)에 글자가 바로 들어갑니다. 꺼 두면 지금처럼 복사 창이 떠요.\n5. A1을 길게 꾹 누르면 조용히 녹음 파일(.m4a) 저장이 시작됩니다. 다시 한 번 톡 누르면 폰의 Recordings/A1녹음 폴더에 저장 (최대 60분, 빨간 표시 없이 작아지고 검은 점만).\n6. A1을 빠르게 4번 누르면 플로팅이 꺼집니다.\n7. 폰에 있는 통화·회의 녹음은 플로팅 버튼 아래 [음성 파일 변환]에서 열면 15분씩 나눠 글로 바꾸고, 기록은 이 폰에만 저장됩니다.\n8. 홈 화면 빈 곳 길게 누르기 → [위젯] → A1 음성 추가 시 한 번 톡으로 켜기/끄기 (상단 빠른 설정 타일도 같은 역할)."
+                android:text="1. 이름과 팀 비밀번호를 넣고 [저장] → 로그인이 확인되면 아래 버튼으로 A1 배지를 띄웁니다(반투명 둥근 배지 + 상태 점).\n2. 카톡·문자·네이트온 어디서든 A1을 두 번 톡톡 누르고 말합니다. 말하는 동안 A1 위에 작은 자막이 실시간으로 떠서 최근 말이 계속 보입니다.\n3. 말이 끝나면 A1을 한 번 누릅니다. 자막 창이 닫히고 정확한 글자(OpenAI)로 바뀌어 입력칸에 들어갑니다. (2분이 지나면 자동 종료)\n4. 접근성을 켜 두면 말이 끝난 자리(입력칸)에 글자가 바로 들어갑니다. 꺼 두면 지금처럼 복사 창이 떠요.\n5. A1을 길게 꾹 누르면 플로팅이 꺼집니다(녹음 중이면 그 녹음은 버립니다). 녹음 파일로 저장하려면 알림의 [녹음] 또는 결과 창의 [녹음]을 누르고, 끝나면 A1을 한 번 누릅니다 → Recordings/A1녹음 (최대 60분).\n6. 배지 상태 점: 초록=켜짐/대기, 하늘색=말하는 중, 노랑=글자로 바꾸는 중.\n7. 폰에 있는 통화·회의 녹음은 플로팅 버튼 아래 [음성 파일 변환]에서 열면 15분씩 나눠 글로 바꾸고, 기록은 이 폰에만 저장됩니다.\n8. 홈 화면 위젯(점 초록=켜짐/회색=꺼짐)을 한 번 누르거나 상단 빠른 설정 타일로 켜고 끌 수 있습니다. 배지가 자꾸 움직이면 위 [플로팅 위치 고정]을 켜 두세요."
                 android:textColor="@color/text_secondary"
                 android:textSize="12sp"
                 android:lineSpacingExtra="4dp"/>
@@ -550,7 +595,7 @@
             android:layout_marginTop="14dp"
             android:gravity="center"
             android:padding="6dp"
-            android:text="A1 음성 v1.4"
+            android:text="A1 음성 v1.8"
             android:textColor="@color/text_secondary"
             android:textSize="10sp"/>
     </LinearLayout>

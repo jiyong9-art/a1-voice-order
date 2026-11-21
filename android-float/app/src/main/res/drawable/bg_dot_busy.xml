@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- v1.8 상태 점: 노랑 = 글자로 바꾸는 중 -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item>
+        <shape android:shape="oval">
+            <solid android:color="#F2FFFFFF"/>
+        </shape>
+    </item>
+    <item
+        android:left="1.5dp"
+        android:top="1.5dp"
+        android:right="1.5dp"
+        android:bottom="1.5dp">
+        <shape android:shape="oval">
+            <solid android:color="#FBBF24"/>
+        </shape>
+    </item>
+</layer-list>

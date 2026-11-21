@@ -43,6 +43,8 @@ public class MainActivity extends Activity {
     private TextView btnBattery;
     private TextView tvAccess;
     private TextView btnAccess;
+    private TextView tvLock;
+    private TextView btnLock;
     private EditText etName;
     private EditText etPass;
     private EditText etServer;
@@ -84,6 +86,8 @@ public class MainActivity extends Activity {
         btnBattery = (TextView) findViewById(R.id.btn_battery);
         tvAccess = (TextView) findViewById(R.id.tv_access);
         btnAccess = (TextView) findViewById(R.id.btn_access);
+        tvLock = (TextView) findViewById(R.id.tv_lock);
+        btnLock = (TextView) findViewById(R.id.btn_lock);
         etName = (EditText) findViewById(R.id.et_name);
         etPass = (EditText) findViewById(R.id.et_pass);
         etServer = (EditText) findViewById(R.id.et_server);
@@ -130,6 +134,12 @@ public class MainActivity extends Activity {
             @Override
             public void onClick(View v) {
                 openAccessibilitySettings();
+            }
+        });
+        btnLock.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                togglePositionLock();
             }
         });
         btnSave.setOnClickListener(new View.OnClickListener() {
@@ -256,6 +266,14 @@ public class MainActivity extends Activity {
         btnAccess.setText(access ? "설정" : "설정 열기");
         btnAccess.setBackgroundResource(access ? R.drawable.bg_btn_small_on : R.drawable.bg_btn_small);
 
+        boolean lock = Prefs.getBool(this, Prefs.K_LOCK, false);
+        tvLock.setText(lock
+                ? "고정됨 · 끌어도 배지가 움직이지 않아요"
+                : "이동 가능 · 끌어서 위치를 옮길 수 있어요");
+        tvLock.setTextColor(lock ? okColor : Color.parseColor("#6B7A8C"));
+        btnLock.setText(lock ? "풀기" : "고정");
+        btnLock.setBackgroundResource(lock ? R.drawable.bg_btn_small_on : R.drawable.bg_btn_small);
+
         boolean loggedIn = isLoggedIn();
         boolean on = OverlayService.running;
         if (loginBusy) {
@@ -273,7 +291,7 @@ public class MainActivity extends Activity {
         }
 
         if (on) {
-            tvToggleHint.setText("지금 A1 동그라미가 떠 있어요. 두 번 톡톡 = 글로 · 길게 꾹 = 녹음 파일 · 빠르게 4번 = 끄기");
+            tvToggleHint.setText("지금 A1 배지가 떠 있어요. 두 번 톡톡 = 글로 · 길게 꾹 = 끄기 · 알림의 [녹음] = 녹음 파일");
         } else if (!loggedIn) {
             tvToggleHint.setText("이름과 팀 비밀번호를 넣고 [저장]을 누르면 서버 로그인을 확인한 뒤 켜집니다.");
         } else {
@@ -288,6 +306,17 @@ public class MainActivity extends Activity {
     /* ------------------------------------------------------------------ */
     /* 권한 · 설정 열기                                                     */
     /* ------------------------------------------------------------------ */
+
+    /** v1.8 플로팅 위치 고정 켜기/끄기 — 켜면 배지를 끌어도 움직이지 않는다. */
+    private void togglePositionLock() {
+        boolean next = !Prefs.getBool(this, Prefs.K_LOCK, false);
+        Prefs.putBool(this, Prefs.K_LOCK, next);
+        Toast.makeText(this,
+                next ? "플로팅 위치를 고정했어요. 앱에서 언제든 풀 수 있어요."
+                        : "위치 고정을 풀었어요. 배지를 끌어서 옮길 수 있어요.",
+                Toast.LENGTH_SHORT).show();
+        refresh();
+    }
 
     private void openOverlaySettings() {
         try {

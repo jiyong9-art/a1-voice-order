@@ -29,11 +29,18 @@ public final class Transcriber {
         public final boolean ok;
         public final String text;
         public final String error;
+        /** v1.8: 서버가 '말소리 없음'으로 판단해 비운 결과 (오류가 아니다) */
+        public final boolean silent;
 
         Out(boolean ok, String text, String error) {
+            this(ok, text, error, false);
+        }
+
+        Out(boolean ok, String text, String error, boolean silent) {
             this.ok = ok;
             this.text = text;
             this.error = error;
+            this.silent = silent;
         }
     }
 
@@ -123,6 +130,10 @@ public final class Transcriber {
                 if (o.optBoolean("ok", false)) {
                     String t = o.optString("text", "").trim();
                     if (t.isEmpty()) {
+                        // v1.8 서버 무음 게이트·프롬프트 에코 필터: 오류가 아니라 '말소리 없음'
+                        if (o.optBoolean("silent", false)) {
+                            return new Out(true, "", null, true);
+                        }
                         return new Out(false, null, "음성을 인식하지 못했습니다. 다시 말씀해 주세요.");
                     }
                     return new Out(true, t, null);

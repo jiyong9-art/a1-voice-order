@@ -1,5 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- v1.7 말하는 동안 플로팅 버튼 위에 뜨는 실시간 자막 말풍선 (반투명·얇게) -->
+<!--
+  v1.8 말하는 동안 배지 위에 뜨는 실시간 자막.
+  - 길게 말해도 최근 말이 계속 보이도록 5줄까지 늘어나고(오래된 말은 위로 밀려 사라진다),
+    실제 글자는 OverlayService 가 뒤에서부터 잘라 넣는다.
+-->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="wrap_content"
     android:layout_height="wrap_content"
@@ -9,9 +13,8 @@
         android:id="@+id/live_text"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:maxWidth="260dp"
-        android:maxLines="3"
-        android:ellipsize="end"
+        android:maxWidth="300dp"
+        android:maxLines="5"
         android:background="@drawable/bg_live"
         android:paddingLeft="10dp"
         android:paddingRight="10dp"

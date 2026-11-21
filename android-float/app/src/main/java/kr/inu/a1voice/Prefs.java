@@ -16,6 +16,8 @@ public final class Prefs {
     public static final String K_COOKIE = "cookie";
     public static final String K_X = "bubble_x";
     public static final String K_Y = "bubble_y";
+    /** v1.8 플로팅 위치 고정(이동 잠금) */
+    public static final String K_LOCK = "bubble_lock";
 
     private Prefs() {
     }
@@ -46,5 +48,13 @@ public final class Prefs {
 
     public static void putLong(Context c, String key, long value) {
         sp(c).edit().putLong(key, value).apply();
+    }
+
+    public static boolean getBool(Context c, String key, boolean def) {
+        return sp(c).getBoolean(key, def);
+    }
+
+    public static void putBool(Context c, String key, boolean value) {
+        sp(c).edit().putBoolean(key, value).apply();
     }
 }

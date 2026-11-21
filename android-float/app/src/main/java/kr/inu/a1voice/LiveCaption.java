@@ -45,8 +45,12 @@ public final class LiveCaption {
     private static final int RATE = PcmRecorder.SAMPLE_RATE;
     /** 자막용으로 모아 두는 소리 조각 수(0.1초 × 80 = 약 8초). 넘치면 버린다. */
     private static final int QUEUE_CHUNKS = 80;
-    /** 문장이 끝나 자막 세션이 닫히면 다시 여는 횟수 상한 */
-    private static final int MAX_SESSIONS = 30;
+    /** 연속으로 실패했을 때 포기하기까지의 횟수 (v1.8 — 횟수 제한 대신 실패 기준) */
+    private static final int MAX_FAILURES = 8;
+    /** 이만큼 새 소식이 없으면 세션을 새로 연다(긴 침묵 뒤 엔진이 멈춰 버리는 경우 대비) */
+    private static final long WATCHDOG_MS = 10000;
+    /** 확정된 문장을 들고 있는 최대 글자 수(넘으면 앞을 버린다) */
+    private static final int MAX_SETTLED_CHARS = 1200;
 
     private final Context ctx;
     private final Listener listener;
@@ -60,7 +64,9 @@ public final class LiveCaption {
     private ParcelFileDescriptor pipeRead;
     private Thread pump;
     private int sessions;
+    private int failures;
     private long lastOpenMs;
+    private long lastEventMs;
     private boolean openScheduled;
     private boolean finished;
 
@@ -83,6 +89,7 @@ public final class LiveCaption {
         }
         running = true;
         lastOpenMs = SystemClock.elapsedRealtime();
+        lastEventMs = lastOpenMs;
         startPump();
         main.post(new Runnable() {
             @Override
@@ -111,6 +118,7 @@ public final class LiveCaption {
     /** 자막을 끝낸다. (말이 끝나 한 번 톡 누른 순간) */
     public void stop() {
         running = false;
+        main.removeCallbacks(watchdog);
         Thread p = pump;
         pump = null;
         if (p != null && p != Thread.currentThread()) {
@@ -165,10 +173,6 @@ public final class LiveCaption {
     /** 음성인식 세션을 (다시) 연다. 반드시 메인 스레드에서. */
     private void openSession() {
         if (!running || finished) {
-            return;
-        }
-        if (sessions >= MAX_SESSIONS) {
-            giveUp();
             return;
         }
         sessions++;
@@ -273,6 +277,21 @@ public final class LiveCaption {
         return s == null ? "" : s.trim();
     }
 
+    /** 확정된 문장이 너무 길어지면 앞부분을 버린다(자막은 최근 말만 보여 주면 된다). */
+    private void trimSettled() {
+        String text = settled.toString();
+        if (text.length() <= MAX_SETTLED_CHARS) {
+            return;
+        }
+        int cut = text.length() - MAX_SETTLED_CHARS / 2;
+        int nl = text.indexOf('\n', cut);
+        if (nl > 0 && nl < text.length() - 1) {
+            cut = nl + 1;
+        }
+        settled.setLength(0);
+        settled.append(text.substring(cut));
+    }
+
     private String withSettled(String part) {
         String head = settled.toString().trim();
         String tail = part == null ? "" : part.trim();
@@ -288,6 +307,9 @@ public final class LiveCaption {
     private final RecognitionListener recognitionListener = new RecognitionListener() {
         @Override
         public void onReadyForSpeech(Bundle params) {
+            failures = 0;
+            lastEventMs = SystemClock.elapsedRealtime();
+            armWatchdog();
         }
 
         @Override
@@ -308,9 +330,20 @@ public final class LiveCaption {
 
         @Override
         public void onError(int error) {
+            lastEventMs = SystemClock.elapsedRealtime();
             if (error == SpeechRecognizer.ERROR_NO_MATCH
-                    || error == SpeechRecognizer.ERROR_SPEECH_TIMEOUT) {
-                reopen();
+                    || error == SpeechRecognizer.ERROR_SPEECH_TIMEOUT
+                    || error == SpeechRecognizer.ERROR_RECOGNIZER_BUSY
+                    || error == SpeechRecognizer.ERROR_CLIENT
+                    || error == SpeechRecognizer.ERROR_NETWORK
+                    || error == SpeechRecognizer.ERROR_NETWORK_TIMEOUT
+                    || error == SpeechRecognizer.ERROR_SERVER) {
+                // v1.8: 말이 길어져도 자막이 사라지지 않게 — 세션을 계속 다시 연다.
+                if (++failures > MAX_FAILURES) {
+                    giveUp();
+                } else {
+                    reopen();
+                }
                 return;
             }
             giveUp();
@@ -318,12 +351,15 @@ public final class LiveCaption {
 
         @Override
         public void onResults(Bundle results) {
+            lastEventMs = SystemClock.elapsedRealtime();
             String text = first(results.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION));
             if (!text.isEmpty()) {
                 if (settled.length() > 0) {
-                    settled.append(' ');
+                    // v1.8: 문장마다 줄을 바꿔 자막이 위로 밀리며 최근 말만 남게 한다.
+                    settled.append('\n');
                 }
                 settled.append(text);
+                trimSettled();
                 final String draft = settled.toString();
                 main.post(new Runnable() {
                     @Override
@@ -339,6 +375,7 @@ public final class LiveCaption {
 
         @Override
         public void onPartialResults(Bundle partialResults) {
+            lastEventMs = SystemClock.elapsedRealtime();
             String text = first(partialResults.getStringArrayList(
                     SpeechRecognizer.RESULTS_RECOGNITION));
             if (text.isEmpty()) {
@@ -357,6 +394,26 @@ public final class LiveCaption {
 
         @Override
         public void onEvent(int eventType, Bundle params) {
+        }
+    };
+
+    /** 긴 침묵 뒤에도 자막이 살아 있도록 주기적으로 깨운다. */
+    private void armWatchdog() {
+        main.removeCallbacks(watchdog);
+        main.postDelayed(watchdog, WATCHDOG_MS);
+    }
+
+    private final Runnable watchdog = new Runnable() {
+        @Override
+        public void run() {
+            if (!running || finished) {
+                return;
+            }
+            if (SystemClock.elapsedRealtime() - lastEventMs >= WATCHDOG_MS) {
+                lastEventMs = SystemClock.elapsedRealtime();
+                reopen();
+            }
+            main.postDelayed(this, WATCHDOG_MS);
         }
     };
 }

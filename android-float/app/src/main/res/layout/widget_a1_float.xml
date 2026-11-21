@@ -1,25 +1,52 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- v1.7 홈 화면 1×1 위젯: 배경 없이 검은 A1 글자만 (플로팅 버튼과 같은 모습) -->
+<!--
+  v1.8 홈 화면 1×1 위젯: 반투명 둥근 배지 + A1 + 상태 점.
+  - 점이 초록이면 플로팅이 켜져 있고, 회색이면 꺼져 있다(한눈에 구분).
+-->
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/widget_root"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="@android:color/transparent"
+    android:padding="4dp"
     android:contentDescription="@string/widget_desc">
 
-    <TextView
-        android:id="@+id/widget_logo"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_gravity="center"
-        android:includeFontPadding="false"
-        android:letterSpacing="0.01"
-        android:text="A1"
-        android:textColor="#111111"
-        android:textSize="24sp"
-        android:textStyle="bold"
-        android:shadowColor="#B3FFFFFF"
-        android:shadowDx="0"
-        android:shadowDy="0"
-        android:shadowRadius="3"/>
+    <FrameLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="@drawable/bg_widget_badge">
+
+        <TextView
+            android:id="@+id/widget_logo"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center"
+            android:includeFontPadding="false"
+            android:letterSpacing="0.01"
+            android:text="A1"
+            android:textColor="#FFFFFF"
+            android:textSize="20sp"
+            android:textStyle="bold"/>
+
+        <View
+            android:id="@+id/widget_dot_on"
+            android:layout_width="11dp"
+            android:layout_height="11dp"
+            android:layout_gravity="top|end"
+            android:layout_marginTop="4dp"
+            android:layout_marginEnd="4dp"
+            android:layout_marginRight="4dp"
+            android:background="@drawable/bg_dot_ready"/>
+
+        <View
+            android:id="@+id/widget_dot_off"
+            android:layout_width="11dp"
+            android:layout_height="11dp"
+            android:layout_gravity="top|end"
+            android:layout_marginTop="4dp"
+            android:layout_marginEnd="4dp"
+            android:layout_marginRight="4dp"
+            android:background="@drawable/bg_dot_off"
+            android:visibility="gone"/>
+    </FrameLayout>
 </FrameLayout>

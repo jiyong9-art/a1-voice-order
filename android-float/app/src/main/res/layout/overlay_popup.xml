@@ -85,6 +85,24 @@
         android:orientation="horizontal"
         android:gravity="end">
 
+        <!-- v1.8 녹음 파일 저장: 길게 누르기가 '끄기'가 되어 이 버튼(과 알림의 [녹음])으로 옮겼다 -->
+        <TextView
+            android:id="@+id/popup_record"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginRight="6dp"
+            android:background="@drawable/bg_btn_small"
+            android:paddingLeft="14dp"
+            android:paddingRight="14dp"
+            android:paddingTop="7dp"
+            android:paddingBottom="7dp"
+            android:includeFontPadding="false"
+            android:text="녹음"
+            android:textColor="@color/brand_blue"
+            android:textSize="12sp"
+            android:textStyle="bold"
+            android:visibility="gone"/>
+
         <TextView
             android:id="@+id/popup_secondary"
             android:layout_width="wrap_content"

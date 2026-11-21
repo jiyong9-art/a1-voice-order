@@ -225,10 +225,11 @@ bash scripts/smoke-test.sh   # 로그인·API 전 구간 자동 점검 (모의 �
 | `lib/local-store.ts` | localStorage 보관함(직원 이름별) · CSV 생성(UTF-8 BOM) · 다운로드 |
 | `app/api/auth/login` · `logout` | 세션 쿠키(HMAC 서명, 7일) 발급/삽입 |
 | `app/api/members` | 직원 목록 조회(GET · 공개) · 추가(POST) · 삭제(DELETE). 변경은 **관리자 비밀번호(`ADMIN_PASSCODE`)** 전용 |
-| `app/api/transcribe` | 음성 → 텍스트 (OpenAI, 한국어 + 고유명사 프롬프트, 24MB 제한) |
+| `app/api/transcribe` | 음성 → 텍스트 (OpenAI, 한국어 + 고유명사 프롬프트, 24MB 제한). **v1.8**: 무음·0.35초 미만은 모델을 부르지 않고 `{ok:true,text:"",silent:true,reason}` (`lib/audio-guard.ts`) |
 | `app/api/structure` | 텍스트 → `order` / `call_summary` JSON (JSON Schema 강제) |
 | `app/api/submit` | 구글 드라이브(시트) 저장 — 시트 행 추가 (미설정 시 건너뜀) |
-| `lib/ai.ts` | 모델 호출·JSON 정규화·모의 모드 |
+| `lib/ai.ts` | 모델 호출·JSON 정규화·모의 모드 · **v1.8 프롬프트 에코(빈칸 환각) 필터** |
+| `lib/audio-guard.ts` | **v1.8** WAV 길이·RMS·말소리 구간 판정(무음 게이트) + 프롬프트 에코 판별 |
 | `lib/sheets.ts` | 시트 읽기/쓰기, `직원목록`·직원 전용 시트 라우팅, Apps Script 웹앱 호출 |
 | `lib/members.ts` | 직원 목록·추가·삭제 (시트 연동이 없으면 런타임 fallback) |
 | `lib/mail.ts` | Resend / SMTP 발송 |
@@ -240,6 +241,7 @@ bash scripts/smoke-test.sh   # 로그인·API 전 구간 자동 점검 (모의 �
 - 직원 추가·삭제는 **관리자 비밀번호**를 따로 확인 (로그인 세션만으로는 불가)
 - 세션당 시간당 요청 제한 (변환 40회 / 정리 60회 / 등록 120회)
 - 업로드 24MB 제한, 통화 텍스트 6만 자 제한
+- **무음·초단시간 오디오는 OpenAI 로 보내지 않는다** — 호출 비용 0, 환각(프롬프트 되읽기) 0 (`npm` 없이 `node --experimental-strip-types scripts/test-audio-guard.mjs` 로 검증)
 - `robots.txt` + `noindex`로 검색 노출 차단, `X-Frame-Options: DENY`
 - OpenAI 키·서비스 계정 키는 **서버에서만** 사용 (브라우저로 전달되지 않음)
 

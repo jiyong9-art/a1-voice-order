@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- v1.8 상태 점: 회색 = 꺼짐(홈 화면 위젯에서 플로팅이 꺼져 있을 때) -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item>
+        <shape android:shape="oval">
+            <solid android:color="#E6FFFFFF"/>
+        </shape>
+    </item>
+    <item
+        android:left="1.5dp"
+        android:top="1.5dp"
+        android:right="1.5dp"
+        android:bottom="1.5dp">
+        <shape android:shape="oval">
+            <solid android:color="#94A3B8"/>
+        </shape>
+    </item>
+</layer-list>

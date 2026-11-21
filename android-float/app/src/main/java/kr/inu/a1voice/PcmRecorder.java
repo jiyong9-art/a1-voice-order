@@ -39,12 +39,16 @@ public final class PcmRecorder {
     private ChunkListener listener;
     private String error;
 
+    /* v1.8 무음 게이트 — 말소리가 없는데 서버로 보내 Whisper 가 엉뚱한 문장을 만드는 일을 막는다. */
+    private final SilenceGate gate = new SilenceGate();
+
     /** 녹음을 시작하고 WAV 파일을 만든다. 실패하면 false (사유는 {@link #lastError()}). */
     public boolean start(File target, ChunkListener l) {
         stop();
         listener = l;
         dataBytes = 0;
         error = null;
+        gate.reset();
         try {
             int min = AudioRecord.getMinBufferSize(SAMPLE_RATE, AudioFormat.CHANNEL_IN_MONO,
                     AudioFormat.ENCODING_PCM_16BIT);
@@ -132,6 +136,7 @@ public final class PcmRecorder {
                         out.write(buf, 0, n);
                         dataBytes += n;
                         written = true;
+                        gate.addPcm16(buf, n);
                     } catch (Exception e) {
                         break;
                     }
@@ -175,6 +180,16 @@ public final class PcmRecorder {
         }
         closeFile();
         listener = null;
+    }
+
+    /** v1.8: 이 녹음에 말소리가 있었는지 (무음이면 서버로 보내지 않는다). */
+    public boolean heardSpeech() {
+        return gate.heardSpeech();
+    }
+
+    /** 말소리로 본 시간(초). */
+    public double speechSeconds() {
+        return gate.speechSeconds();
     }
 
     /** 지금까지 쌓인 소리 길이(초). */

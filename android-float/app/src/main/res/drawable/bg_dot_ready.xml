@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- v1.8 상태 점: 초록 = 켜짐·대기(말할 준비). 흰 테두리를 둘러 어떤 배경에서도 보인다. -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item>
+        <shape android:shape="oval">
+            <solid android:color="#F2FFFFFF"/>
+        </shape>
+    </item>
+    <item
+        android:left="1.5dp"
+        android:top="1.5dp"
+        android:right="1.5dp"
+        android:bottom="1.5dp">
+        <shape android:shape="oval">
+            <solid android:color="#22C55E"/>
+        </shape>
+    </item>
+</layer-list>
