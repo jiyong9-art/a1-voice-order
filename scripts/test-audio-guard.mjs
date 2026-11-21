@@ -9,11 +9,18 @@ import { analyzeAudio, looksLikeHallucination, silenceReason } from "../lib/audi
 
 const RATE = 16000;
 
-function wav({ seconds, amplitude = 0, freq = 440, noise = 0 }) {
+/**
+ * 시험용 WAV. amplitude>0 이면 '말소리처럼' 음절마다 크기가 오르내리게 만든다
+ * (일정한 사인파는 실제 말소리가 아니라 잡음으로 판정된다 — v1.9).
+ */
+function wav({ seconds, amplitude = 0, freq = 440, noise = 0, flat = false }) {
   const samples = Math.round(seconds * RATE);
   const data = Buffer.alloc(samples * 2);
   for (let i = 0; i < samples; i++) {
-    let v = Math.sin((2 * Math.PI * freq * i) / RATE) * amplitude;
+    const t = i / RATE;
+    // 실제 말소리처럼 음절마다 오르내리고, 단어 사이에 짧은 틈이 있다.
+    const syllable = flat ? 1 : t % 1.3 < 0.18 ? 0.002 : 0.15 + 0.85 * Math.abs(Math.sin(2 * Math.PI * 3.4 * t));
+    let v = Math.sin((2 * Math.PI * freq * i) / RATE) * amplitude * syllable;
     if (noise) {
       v += (Math.random() * 2 - 1) * noise;
     }
@@ -55,7 +62,12 @@ check("0.2초 무음 → too_short", silenceReason(analyzeAudio(wav({ seconds: 0
 
 const speechish = analyzeAudio(wav({ seconds: 3, amplitude: 0.25 }));
 console.log("3초 소리 프로필:", speechish);
-check("3초 보통 크기 소리 → 통과", silenceReason(speechish), null);
+check("3초 보통 크기 말소리 → 통과", silenceReason(speechish), null);
+
+// v1.9: 크기가 평평한 잡음(모터·바람)은 모델을 부르지 않는다 — 없던 문장을 만들어 내기 때문
+const flatNoise = analyzeAudio(wav({ seconds: 3, amplitude: 0.05, flat: true }));
+console.log("평평한 잡음 프로필:", flatNoise);
+check("평평한 잡음(사인파) → silent", silenceReason(flatNoise), "silent");
 
 const faint = analyzeAudio(wav({ seconds: 2, amplitude: 0.002 }));
 console.log("아주 작은 소리 프로필:", faint);

@@ -29,6 +29,8 @@ export type AudioProfile = {
   speechSeconds: number;
   /** 말소리 구간 비율 (0~1) */
   speechRatio: number;
+  /** 20ms 프레임 크기(dB)의 표준편차. 말소리는 음절마다 크게 오르내려 10dB 를 넘고, 잡음은 1~4dB 다. */
+  levelVariationDb: number;
 };
 
 export type SilenceReason = "too_short" | "silent";
@@ -50,6 +52,14 @@ const SILENCE_RMS_DB = -58;
 /** 말소리 구간이 이보다 짧으면서 전체도 조용하면(-52 dBFS) 무음. */
 const MIN_SPEECH_SEC = 0.15;
 const QUIET_RMS_DB = -52;
+/**
+ * 프레임 크기의 표준편차가 이보다 작으면 '잡음'으로 본다.
+ * 실제 말소리(s1 20.7dB, 긴 녹음 25dB)와 달리, 모터·바람·숨소리·방 소음은 0.3~4.6dB 로 평평하다.
+ * 이런 파일을 모델에 보내면 없는 문장("기계가액이 어떻게 되죠?")을 만들어 내므로 아예 부르지 않는다.
+ */
+const NOISE_FLATNESS_DB = 5;
+/** 이보다 짧은 파일은 표준편차가 의미 없으므로 잡음 판정을 건너뛴다. */
+const FLATNESS_MIN_SEC = 1;
 
 function db(amplitude: number): number {
   if (!(amplitude > 0)) {
@@ -65,6 +75,7 @@ const EMPTY: AudioProfile = {
   peak: 0,
   speechSeconds: 0,
   speechRatio: 0,
+  levelVariationDb: 0,
 };
 
 /**
@@ -166,6 +177,17 @@ export function analyzeAudio(bytes: Uint8Array): AudioProfile {
     let blockCount = 0;
     let speechFrames = 0;
     let blockTotal = 0;
+    // 프레임 크기(dB)의 평균·분산 (Welford). -Infinity 는 -100dB 로 눌러 센다.
+    let frameDbCount = 0;
+    let frameDbMean = 0;
+    let frameDbM2 = 0;
+    const addFrameLevel = (value: number) => {
+      const d = Number.isFinite(value) ? Math.max(-100, value) : -100;
+      frameDbCount++;
+      const delta = d - frameDbMean;
+      frameDbMean += delta / frameDbCount;
+      frameDbM2 += delta * (d - frameDbMean);
+    };
 
     for (let s = 0; s < totalSamples; s++) {
       const base = dataAt + s * blockAlign;
@@ -185,24 +207,30 @@ export function analyzeAudio(bytes: Uint8Array): AudioProfile {
       }
       if (blockTotal >= framesPerBlock) {
         const frameRms = Math.sqrt(blockSq / blockTotal);
-        if (db(frameRms) > SPEECH_FRAME_DB) {
+        const frameDb = db(frameRms);
+        if (frameDb > SPEECH_FRAME_DB) {
           speechFrames++;
         }
+        addFrameLevel(frameDb);
         blockSq = 0;
         blockTotal = 0;
       }
     }
     if (blockTotal > 0) {
       const frameRms = Math.sqrt(blockSq / blockTotal);
-      if (db(frameRms) > SPEECH_FRAME_DB) {
+      const frameDb = db(frameRms);
+      if (frameDb > SPEECH_FRAME_DB) {
         speechFrames++;
       }
+      addFrameLevel(frameDb);
     }
 
     const totalBlocks = Math.ceil(totalSamples / framesPerBlock);
     const speechRatio = totalBlocks > 0 ? speechFrames / totalBlocks : 0;
     const speechSeconds = durationSec * speechRatio;
     const rmsDb = db(Math.sqrt(totalSq / totalSamples));
+    const levelVariationDb =
+      frameDbCount > 1 ? Math.sqrt(Math.max(0, frameDbM2 / frameDbCount)) : 0;
 
     return {
       format: "wav",
@@ -211,6 +239,7 @@ export function analyzeAudio(bytes: Uint8Array): AudioProfile {
       peak: Number(peak.toFixed(4)),
       speechSeconds: Number(speechSeconds.toFixed(2)),
       speechRatio: Number(speechRatio.toFixed(3)),
+      levelVariationDb: Number(levelVariationDb.toFixed(1)),
     };
   } catch {
     return { ...EMPTY };
@@ -236,8 +265,20 @@ export function silenceReason(profile: AudioProfile): SilenceReason | null {
   if (profile.rmsDb < SILENCE_RMS_DB) {
     return "silent";
   }
+  // 0.8초가 넘는 녹음인데 말소리 구간이 0.15초도 없으면(딸깍·툭 소리) 무음
+  if (profile.durationSec >= 0.8 && profile.speechSeconds < MIN_SPEECH_SEC) {
+    return "silent";
+  }
   // 말소리로 볼 만한 구간이 거의 없고 전체도 아주 조용하면 무음 (작은 목소리는 통과)
   if (profile.speechSeconds < MIN_SPEECH_SEC && profile.rmsDb < QUIET_RMS_DB) {
+    return "silent";
+  }
+  // 크기가 평평한 잡음(모터·바람·숨소리)은 말소리가 아니다 — 모델이 없는 문장을 만들어 낸다.
+  if (
+    profile.durationSec >= FLATNESS_MIN_SEC &&
+    profile.levelVariationDb > 0 &&
+    profile.levelVariationDb < NOISE_FLATNESS_DB
+  ) {
     return "silent";
   }
   return null;
