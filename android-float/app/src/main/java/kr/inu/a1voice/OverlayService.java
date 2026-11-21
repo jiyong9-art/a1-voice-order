@@ -105,7 +105,7 @@ public class OverlayService extends Service {
 
     private static final int MODE_IDLE = 0;
     private static final int MODE_DICTATE = 1;   // 두 번 톡톡 → 글자 변환
-    private static final int MODE_FILE = 2;      // 길게 꾹 → 파일 저장
+    private static final int MODE_FILE = 2;      // 알림·결과 창 [녹음] → 파일 저장
 
     /** 저장 폴더: 기기 공용 Recordings/A1녹음 */
     private static final String REC_DIR_NAME = "A1녹음";
@@ -322,7 +322,7 @@ public class OverlayService extends Service {
         if (Build.VERSION.SDK_INT >= 26 && nm != null && nm.getNotificationChannel(CHANNEL_ID) == null) {
             NotificationChannel ch = new NotificationChannel(CHANNEL_ID, "A1 음성 플로팅", NotificationManager.IMPORTANCE_LOW);
             ch.setShowBadge(false);
-            ch.setDescription("A1 동그라미가 떠 있는 동안 표시됩니다.");
+            ch.setDescription("A1 배지가 떠 있는 동안 표시됩니다.");
             nm.createNotificationChannel(ch);
         }
         Intent open = new Intent(this, MainActivity.class);
