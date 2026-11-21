@@ -83,6 +83,7 @@ public class OverlayService extends Service {
     private File recFile;
     private boolean recording;
     private long recStartMs;
+    private int recDurationSec;
 
     private final Handler ui = new Handler(Looper.getMainLooper());
     private final ExecutorService io = Executors.newSingleThreadExecutor();
@@ -541,6 +542,7 @@ public class OverlayService extends Service {
             return;
         }
         bubbleState.setText("변환 준비…");
+        recDurationSec = (int) (dur / 1000);
         transcribe(recFile);
     }
 
@@ -585,6 +587,8 @@ public class OverlayService extends Service {
                     @Override
                     public void run() {
                         if (out.ok) {
+                            // 말한 내용은 이 기기 기록에도 남긴다(서버에는 안 남는다).
+                            History.add(app, "플로팅 녹음", History.SRC_FLOAT, recDurationSec, 1, out.text);
                             copyToClipboard(out.text);
                             if (direct) {
                                 insertDirect(out.text);

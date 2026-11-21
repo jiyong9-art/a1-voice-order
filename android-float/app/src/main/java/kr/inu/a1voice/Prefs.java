@@ -39,4 +39,12 @@ public final class Prefs {
     public static void putInt(Context c, String key, int value) {
         sp(c).edit().putInt(key, value).apply();
     }
+
+    public static long getLong(Context c, String key, long def) {
+        return sp(c).getLong(key, def);
+    }
+
+    public static void putLong(Context c, String key, long value) {
+        sp(c).edit().putLong(key, value).apply();
+    }
 }

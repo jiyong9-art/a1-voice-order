@@ -2,6 +2,8 @@ package kr.inu.a1voice;
 
 import android.Manifest;
 import android.app.Activity;
+import android.app.AlertDialog;
+import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.graphics.Color;
@@ -12,8 +14,10 @@ import android.os.Handler;
 import android.os.Looper;
 import android.os.PowerManager;
 import android.provider.Settings;
+import android.view.LayoutInflater;
 import android.view.View;
 import android.widget.EditText;
+import android.widget.ProgressBar;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -44,6 +48,15 @@ public class MainActivity extends Activity {
     private TextView btnSave;
     private TextView btnToggle;
     private TextView tvToggleHint;
+    private TextView tvHistory;
+    private TextView btnHistory;
+    private TextView btnPickFile;
+    private TextView btnPickFolder;
+    private TextView tvVersion;
+
+    /** 버전 확인은 앱을 열었을 때 3시간에 한 번만 한다(계속 뜨면 성가시니까). */
+    private static final long VERSION_CHECK_GAP_MS = 3L * 60 * 60 * 1000;
+    private static final String K_LAST_VERSION_CHECK = "last_version_check";
 
     private final Handler ui = new Handler(Looper.getMainLooper());
     private boolean autoStartTried = false;
@@ -76,6 +89,11 @@ public class MainActivity extends Activity {
         btnSave = (TextView) findViewById(R.id.btn_save);
         btnToggle = (TextView) findViewById(R.id.btn_toggle);
         tvToggleHint = (TextView) findViewById(R.id.tv_toggle_hint);
+        tvHistory = (TextView) findViewById(R.id.tv_history);
+        btnHistory = (TextView) findViewById(R.id.btn_history);
+        btnPickFile = (TextView) findViewById(R.id.btn_pick_file);
+        btnPickFolder = (TextView) findViewById(R.id.btn_pick_folder);
+        tvVersion = (TextView) findViewById(R.id.tv_version);
 
         // 이름·비밀번호는 기본값 없이 빈칸 — 저장된 값이 있을 때만 채운다.
         etName.setText(Prefs.get(this, Prefs.K_NAME, ""));
@@ -124,12 +142,53 @@ public class MainActivity extends Activity {
                 toggleFloating();
             }
         });
+
+        btnPickFile.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                openFileTranscribe(FileTranscribeActivity.MODE_FILE);
+            }
+        });
+        btnPickFolder.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                openFileTranscribe(FileTranscribeActivity.MODE_FOLDER);
+            }
+        });
+        btnHistory.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                startActivity(new Intent(MainActivity.this, HistoryActivity.class));
+            }
+        });
+        tvVersion.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                checkUpdate(true);
+            }
+        });
+    }
+
+    private void openFileTranscribe(String mode) {
+        String cookie = Prefs.get(this, Prefs.K_COOKIE, "");
+        String pass = Prefs.get(this, Prefs.K_PASS, "");
+        if ((cookie == null || cookie.trim().isEmpty()) && (pass == null || pass.trim().isEmpty())) {
+            Toast.makeText(this, "먼저 이름과 팀 비밀번호를 넣고 [저장]을 눌러 주세요.", Toast.LENGTH_LONG).show();
+            if (etName != null) {
+                etName.requestFocus();
+            }
+            return;
+        }
+        Intent i = new Intent(this, FileTranscribeActivity.class);
+        i.putExtra(FileTranscribeActivity.EXTRA_MODE, mode);
+        startActivity(i);
     }
 
     @Override
     protected void onResume() {
         super.onResume();
         refresh();
+        checkUpdate(false);
         // 쿠키가 없고 저장된 이름·비번이 있으면 조용히 한 번 로그인해 본다.
         if (!silentLoginTried) {
             silentLoginTried = true;
@@ -218,6 +277,10 @@ public class MainActivity extends Activity {
         } else {
             tvToggleHint.setText("켜 두면 다른 앱을 써도 A1이 화면 위에 떠 있어요.");
         }
+
+        int hist = History.count(this);
+        tvHistory.setText("변환 기록 " + hist + "건 · 이 기기에만 저장");
+        tvVersion.setText("A1 음성 v" + UpdateChecker.installedName(this) + " · 새 버전 확인");
     }
 
     /* ------------------------------------------------------------------ */
@@ -459,5 +522,95 @@ public class MainActivity extends Activity {
                 }
             }
         }, 700);
+    }
+
+    /* ------------------------------------------------------------------ */
+    /* 새 버전 확인 (Update / Updating...)                                  */
+    /* ------------------------------------------------------------------ */
+
+    /** manual=true 면 이미 최신일 때도 "최신 버전"을 알려 준다. */
+    private void checkUpdate(final boolean manual) {
+        long last = Prefs.getLong(this, K_LAST_VERSION_CHECK, 0L);
+        long now = System.currentTimeMillis();
+        if (!manual && now - last < VERSION_CHECK_GAP_MS) {
+            return;
+        }
+        if (manual) {
+            Toast.makeText(this, "새 버전을 확인하는 중…", Toast.LENGTH_SHORT).show();
+        }
+        Prefs.putLong(this, K_LAST_VERSION_CHECK, now);
+        final boolean showLatest = manual;
+        UpdateChecker.check(this, new UpdateChecker.Listener() {
+            @Override
+            public void onNewVersion(int versionCode, String versionName, String apkUrl) {
+                showUpdateDialog(versionName, apkUrl);
+            }
+
+            @Override
+            public void onUpToDate() {
+                if (showLatest) {
+                    Toast.makeText(MainActivity.this,
+                            "Latest version v" + UpdateChecker.installedName(MainActivity.this),
+                            Toast.LENGTH_SHORT).show();
+                }
+            }
+        });
+    }
+
+    /** "New version v1.3 available" → [Update] 누르면 "Updating..." 으로 바뀌고 새 APK 로 넘어간다. */
+    private void showUpdateDialog(String versionName, final String apkUrl) {
+        if (isFinishing()) {
+            return;
+        }
+        final View v = LayoutInflater.from(this).inflate(R.layout.dlg_update, null);
+        final TextView title = (TextView) v.findViewById(R.id.dlg_title);
+        final TextView msg = (TextView) v.findViewById(R.id.dlg_msg);
+        final View buttons = v.findViewById(R.id.dlg_buttons);
+        final View pb = v.findViewById(R.id.dlg_pb);
+        final TextView update = (TextView) v.findViewById(R.id.dlg_update);
+        TextView later = (TextView) v.findViewById(R.id.dlg_later);
+
+        String latest = versionName == null || versionName.trim().isEmpty() ? "" : versionName.trim();
+        title.setText(latest.isEmpty() ? "New version available" : "New version v" + latest + " available");
+        msg.setText("지금 v" + UpdateChecker.installedName(this)
+                + " 를 쓰고 있어요. 지금 업데이트하면 바로 새 기능을 쓸 수 있습니다.");
+
+        final AlertDialog dlg = new AlertDialog.Builder(this)
+                .setView(v)
+                .setCancelable(true)
+                .create();
+        later.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View x) {
+                dlg.dismiss();
+            }
+        });
+        update.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View x) {
+                title.setText("Updating...");
+                msg.setText("새 버전을 내려받아 설치합니다. 안내가 뜨면 [설치]를 눌러 주세요.");
+                buttons.setVisibility(View.GONE);
+                pb.setVisibility(View.VISIBLE);
+                openApk(apkUrl);
+                ui.postDelayed(new Runnable() {
+                    @Override
+                    public void run() {
+                        dlg.dismiss();
+                    }
+                }, 2600);
+            }
+        });
+        dlg.show();
+    }
+
+    private void openApk(String url) {
+        try {
+            Intent i = new Intent(Intent.ACTION_VIEW, Uri.parse(url));
+            i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            startActivity(i);
+        } catch (Exception e) {
+            Toast.makeText(this, "브라우저를 열지 못했어요: " + url, Toast.LENGTH_LONG).show();
+        }
     }
 }

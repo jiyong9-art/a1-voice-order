@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="kr.inu.a1voice"
-    android:versionCode="3"
-    android:versionName="1.2">
+    android:versionCode="4"
+    android:versionName="1.3">
 
     <uses-permission android:name="android.permission.INTERNET"/>
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>
@@ -39,6 +39,19 @@
             android:name=".OverlayService"
             android:exported="false"
             android:foregroundServiceType="microphone"/>
+
+        <!-- 음성 파일·폴더 열어 변환 (v1.3). 이 기기 안에서만 저장한다. -->
+        <activity
+            android:name=".FileTranscribeActivity"
+            android:exported="false"
+            android:screenOrientation="portrait"
+            android:windowSoftInputMode="adjustResize"/>
+
+        <activity
+            android:name=".HistoryActivity"
+            android:exported="false"
+            android:screenOrientation="portrait"
+            android:windowSoftInputMode="adjustResize"/>
 
         <!-- 입력칸 바로 넣기: 사용자가 설정에서 직접 켜야 동작한다 (기본은 꺼짐) -->
         <service
