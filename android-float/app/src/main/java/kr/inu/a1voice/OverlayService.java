@@ -136,6 +136,8 @@ public class OverlayService extends Service {
     private View liveRoot;
     private TextView liveText;
     private WindowManager.LayoutParams liveParams;
+    /** 자막에 실제 글자가 한 번이라도 올라왔는지(안 오면 '듣는 중…' 창을 닫는다) */
+    private boolean captionGotText;
     private File recFile;
     private boolean recording;
     private int mode = MODE_IDLE;
@@ -842,14 +844,17 @@ public class OverlayService extends Service {
 
     private void startLiveCaption() {
         stopLiveCaption();
+        captionGotText = false;
         LiveCaption c = new LiveCaption(this, new LiveCaption.Listener() {
             @Override
             public void onPartial(String text) {
+                captionGotText = true;
                 updateLiveCaption(text);
             }
 
             @Override
             public void onDraft(String text) {
+                captionGotText = true;
                 updateLiveCaption(text);
             }
 
@@ -861,12 +866,26 @@ public class OverlayService extends Service {
         if (c.start()) {
             caption = c;
             updateLiveCaption("듣는 중…");
+            // 3초 동안 아무 결과도 안 오면 자막을 조용히 닫는다(기기가 지원하지 않을 수 있다).
+            ui.postDelayed(hideStaleCaption, 3000);
         } else {
             caption = null;
         }
     }
 
+    /** 자막 말풍선이 '듣는 중…' 만 띄운 채 굳어 있으면 닫는다. */
+    private final Runnable hideStaleCaption = new Runnable() {
+        @Override
+        public void run() {
+            if (captionGotText || mode != MODE_DICTATE) {
+                return;
+            }
+            hideLiveCaption();
+        }
+    };
+
     private void stopLiveCaption() {
+        ui.removeCallbacks(hideStaleCaption);
         LiveCaption c = caption;
         caption = null;
         if (c != null) {

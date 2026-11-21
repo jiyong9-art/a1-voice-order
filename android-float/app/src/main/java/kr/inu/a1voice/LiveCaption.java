@@ -61,6 +61,7 @@ public final class LiveCaption {
     private Thread pump;
     private int sessions;
     private long lastOpenMs;
+    private boolean openScheduled;
     private boolean finished;
 
     public LiveCaption(Context ctx, Listener listener) {
@@ -249,19 +250,19 @@ public final class LiveCaption {
 
     /** 문장 경계에서 세션을 새로 열어 계속 듣는다. */
     private void reopen() {
-        if (!running || finished) {
+        if (!running || finished || openScheduled) {
             return;
         }
-        if (SystemClock.elapsedRealtime() - lastOpenMs < 700) {
-            giveUp();
-            return;
-        }
+        long since = SystemClock.elapsedRealtime() - lastOpenMs;
+        long wait = since < 700 ? (700 - since) : 60;
+        openScheduled = true;
         main.postDelayed(new Runnable() {
             @Override
             public void run() {
+                openScheduled = false;
                 openSession();
             }
-        }, 60);
+        }, wait);
     }
 
     private static String first(ArrayList<String> list) {
