@@ -1,7 +1,7 @@
 {
-  "versionCode": 6,
-  "versionName": "1.5",
+  "versionCode": 7,
+  "versionName": "1.6",
   "url": "https://a1kr.com/app/a1-voice.apk",
   "released": "2026-11-21",
-  "notes": "플로팅 버튼이 A1 로고로 · 길게 꾹 누르면 조용히 녹음 파일(.m4a) 저장 · 빠르게 4번 누르면 플로팅 끄기"
+  "notes": "홈 화면 1×1 위젯 · 상단 빠른 설정 타일로 한 번에 켜고 끄기 · 대기 중에는 반투명(0.68)"
 }

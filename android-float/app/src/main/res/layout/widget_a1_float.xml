@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- v1.6 홈 화면 1×1 위젯: 다크네이비 둥근 배경 + 가운데 흰색 A1. 한 번 탭 = 플로팅 켜기/끄기 -->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/widget_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/bg_widget_a1"
+    android:contentDescription="@string/widget_desc">
+
+    <TextView
+        android:id="@+id/widget_logo"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center"
+        android:includeFontPadding="false"
+        android:letterSpacing="0.02"
+        android:text="A1"
+        android:textColor="#FFFFFF"
+        android:textSize="20sp"
+        android:textStyle="bold"/>
+</FrameLayout>

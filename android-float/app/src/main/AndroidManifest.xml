@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="kr.inu.a1voice"
-    android:versionCode="6"
-    android:versionName="1.5">
+    android:versionCode="7"
+    android:versionName="1.6">
 
     <uses-permission android:name="android.permission.INTERNET"/>
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>
@@ -42,6 +42,40 @@
             android:name=".OverlayService"
             android:exported="false"
             android:foregroundServiceType="microphone"/>
+
+        <!-- v1.6 위젯·타일이 부르는 투명 화면: 화면이 떠 있는 동안 포그라운드 서비스를 켠다 -->
+        <activity
+            android:name=".WidgetToggleActivity"
+            android:exported="false"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar"
+            android:excludeFromRecents="true"
+            android:noHistory="true"
+            android:taskAffinity=""/>
+
+        <!-- v1.6 홈 화면 1×1 위젯: 한 번 탭 = 플로팅 켜기/끄기 -->
+        <receiver
+            android:name=".A1FloatWidgetProvider"
+            android:exported="true"
+            android:label="@string/widget_label">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE"/>
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/a1_float_widget_info"/>
+        </receiver>
+
+        <!-- v1.6 상단 빠른 설정 타일: 타일 탭 = 플로팅 켜기/끄기 -->
+        <service
+            android:name=".A1QuickTileService"
+            android:exported="true"
+            android:icon="@drawable/ic_tile_a1"
+            android:label="@string/tile_label"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE"/>
+            </intent-filter>
+        </service>
 
         <!-- 음성 파일·폴더 열어 변환 (v1.3, v1.4 실시간 글자 표시). 이 기기 안에서만 저장한다. -->
         <activity

@@ -4,10 +4,10 @@
 말이 끝나면 `a1-voice-order` 의 Whisper(`gpt-4o-transcribe`)로 변환해 **입력칸에 바로 넣어주는**(또는 자동 복사하는) 안드로이드 앱.
 **길게 꾹** 누르면 티 나지 않게 녹음 파일(`.m4a`)로 저장한다.
 
-- 패키지: `kr.inu.a1voice` · 이름: `A1 음성` · **versionName 1.5 (versionCode 6 · 2026-11-21 A1 로고·길게 꾹 녹음 파일 저장·4연타 종료)**
-- 이전 버전: v1.4(versionCode 5) — `archive/a1-voice-float-v1.4.apk`, v1.3(versionCode 4) — `archive/a1-voice-float-v1.3.apk`, v1.2(versionCode 3) — `archive/a1-voice-float-v1.2.apk`, v1.0 — `archive/a1-voice-float-v1.0.apk`
+- 패키지: `kr.inu.a1voice` · 이름: `A1 음성` · **versionName 1.6 (versionCode 7 · 2026-11-21 홈 화면 위젯·상단 빠른 설정 타일·대기 중 반투명)**
+- 이전 버전: v1.5(versionCode 6) — `archive/a1-voice-float-v1.5.apk`, v1.4(versionCode 5) — `archive/a1-voice-float-v1.4.apk`, v1.3(versionCode 4) — `archive/a1-voice-float-v1.3.apk`, v1.2(versionCode 3) — `archive/a1-voice-float-v1.2.apk`, v1.0 — `archive/a1-voice-float-v1.0.apk`
 - minSdk 26 (Android 8) / targetSdk 34
-- 외부 라이브러리 0개 (Android 프레임워크만 사용) → APK 약 159KB
+- 외부 라이브러리 0개 (Android 프레임워크만 사용) → APK 약 176KB
 - 배포: `https://a1kr.com/app/a1-voice.apk`
 
 ## 기능
@@ -15,6 +15,9 @@
 | 동작 | 설명 |
 |---|---|
 | 플로팅 동그라미 | `SYSTEM_ALERT_WINDOW` 오버레이. **다크네이비 원 + 가운데 흰색 `A1` 로고** (v1.5, 마이크 아이콘 대신 — 주변에서 녹음 앱인지 티 안 나게). 드래그로 이동, 놓으면 좌우 테두리에 붙고 위치 저장 |
+| **대기 중 반투명 (v1.6)** | 대기(A1 로고) 상태일 때는 동그라미 전체를 **alpha 0.68** 로 살짝 비춰 `Sales` 같은 다른 앱 화면을 덜 가린다. **글자 변환 중·녹음 파일 저장 중(0.66배 축소+흰점)·손으로 드래그하는 중**에는 즉시 **1.0** 으로 또렷해지고, 끝나 대기로 돌아오면 다시 0.68 |
+| **홈 화면 1×1 위젯 (v1.6)** | 다크네이비 둥근 배경 + 가운데 흰색 `A1`. **한 번 탭 = 앱 설정 화면 없이 플로팅 즉시 켜기/끄기** + 토스트(`A1 플로팅 켜짐` / `A1 플로팅 꺼짐`). 로그인·`다른 앱 위에 표시`·마이크가 빠져 있으면 앱 설정 화면을 열어 안내 |
+| **상단 빠른 설정 타일 (v1.6)** | 상단바를 내려 `A1 음성` 타일을 누르면 위젯과 똑같이 즉시 토글. 타일 상태(`STATE_ACTIVE`/`STATE_INACTIVE`)·부제(`켜짐`/`꺼짐`)가 서비스 상태와 동기화 |
 | **길게 꾹 = 녹음 파일 저장 (v1.5)** | 0.55초 이상 꾹 누르면 **진동 15ms 와 함께 조용히** 녹음 파일 저장이 시작된다. 화면은 **빨간색 없이** 다크네이비 유지 + 동그라미가 0.66배로 작아지고 가운데 `A1` 이 **작은 흰 점(●)** 으로만 바뀐다(타이머·문구 없음). 다시 한 번 톡 누르면 `Recordings/A1녹음/A1_YYYYMMDD_HHMMSS.m4a` 로 저장 → 토스트 `녹음 저장됨` → `A1` 로고 복귀. 최대 60분 |
 | **4연타 = 플로팅 끄기 (v1.5)** | 1.1초 안에 4번 톡 누르면 진행 중인 녹음·변환을 **서버로 보내지 않고 폐기**하고 토스트 `플로팅 종료됨` 과 함께 플로팅을 완전히 끈다. 두 번 톡톡(글자 변환)은 지연 없이 그대로 시작된다 |
 | **즉시 반응 (v1.5)** | 두 번 톡톡·길게 꾹이 감지되면 마이크를 여는 `prepare/start` **전에** 화면 표시와 15ms 진동을 먼저 처리한다(반 박자 늦는 느낌 제거) |
@@ -102,7 +105,7 @@ KS_PASS='<서명키 비밀번호>' sh build.sh   # aapt2 → javac → d8 → zi
 
 ```
 GET https://a1kr.com/app/version.json
-{"versionCode":6,"versionName":"1.5","url":"https://a1kr.com/app/a1-voice.apk"}
+{"versionCode":7,"versionName":"1.6","url":"https://a1kr.com/app/a1-voice.apk"}
 ```
 
 ## 서버 계약 (a1-voice-order)
@@ -120,6 +123,41 @@ POST {server}/api/transcribe      multipart/form-data, field "audio" (파일)
 
 `/api/transcribe` 는 개인정보 가림(masking)을 하지 않아 붙여넣기용 원문이 그대로 온다.
 (서버에 그 경로가 없으면 `/api/sales/voice` + `x-a1-passcode` 로 대신 시도하고 `transcript` 만 사용)
+
+## v1.6 — 홈 화면 1×1 위젯 · 상단 빠른 설정 타일 · 대기 중 반투명
+
+대표님 요청(2026-11-21 18:35~18:38):
+> "바탕화면 1×1 위젯 + 상단 빠른 설정 타일" · "대기 상태일 때는 alpha 0.68, 녹음·변환·드래그 중에는 1.0"
+
+### 1) 홈 화면 1×1 위젯 (`A1FloatWidgetProvider`)
+- `res/xml/a1_float_widget_info.xml` — `targetCellWidth/Height=1`, `minWidth/Height=40dp`, `resizeMode=none`.
+- `res/layout/widget_a1_float.xml` — `bg_widget_a1`(다크네이비 `#0F1E3A`, radius 18dp) + 가운데 흰색 `A1`(20sp bold). 플로팅 버튼과 같은 모습.
+- 탭 → 투명 화면 `WidgetToggleActivity`(`Theme.Translucent.NoTitleBar`, `noHistory`, 별도 task) 로 이동.
+
+### 2) 상단 빠른 설정 타일 (`A1QuickTileService`)
+- `BIND_QUICK_SETTINGS_TILE` 권한의 `<service>` + `android.service.quicksettings.action.QS_TILE`, label `A1 음성`, 아이콘 `ic_tile_a1`(흰 A1, 24dp·5밀도 PNG).
+- 누르면 서비스 상태에 따라 즉시 켜기/끄기, 타일은 `STATE_ACTIVE`/`STATE_INACTIVE` + 부제 `켜짐`/`꺼짐` 으로 동기화(`onStartListening`, 토글 후 0.6초 뒤 갱신).
+
+### 3) `ForegroundServiceStartNotAllowedException` 방어 구조
+Android 12+ 는 백그라운드 앱이 포그라운드 서비스를 시작하지 못한다. 그래서 위젯·타일은 **직접 `startForegroundService` 를 부르지 않는다**.
+
+| 부르는 곳 | 처리 |
+|---|---|
+| 위젯 탭 | `PendingIntent.getActivity` → `WidgetToggleActivity`(투명) 가 화면으로 뜬 상태에서 `startForegroundService` → 220ms 뒤 `finish()` |
+| 타일 탭(켜기) | `startActivityAndCollapse(PendingIntent)` (API 34+) / `startActivityAndCollapse(Intent)` (API 24~33) 로 같은 투명 화면을 띄워 시작 |
+| 타일 탭(끄기) | `stopService` 는 제한이 없어 타일에서 바로 종료 |
+| 그래도 실패 | `try/catch` 로 잡아 토스트 + `MainActivity` 안내 (크래시 없음) |
+
+### 4) 토글 규칙 (`FloatToggle`)
+- 이미 떠 있으면 → `stopService` 즉시 종료 + 토스트 `A1 플로팅 꺼짐`.
+- 로그인 쿠키·`다른 앱 위에 표시`·마이크가 모두 준비됨 → 켜고 토스트 `A1 플로팅 켜짐`.
+- 하나라도 빠짐 → `MainActivity` 를 열어 설정하도록 안내(위젯·타일 모두).
+
+### 5) 대기 중 반투명 (0.68)
+- `OverlayService`: `IDLE_ALPHA=0.68f`, `ACTIVE_ALPHA=1.0f`. `applyModeVisual()` 이 대기일 때만 0.68, 변환·녹음 중에는 1.0. 드래그 시작 시 1.0, 손을 떼면 녹음 중이 아니면 다시 0.68(140ms 페이드).
+
+### 6) 그대로 유지되는 것
+v1.5 의 `A1` 로고·길게 꾹 녹음 파일 저장·4연타 종료, v1.4 의 무손실 분할·실시간 글자 표시·`[부분 저장]`, 기기 기록, 접근성 바로 넣기, 로그인 잠금, `UpdateChecker` 전부 그대로다.
 
 ## v1.5 — A1 로고 · 길게 꾹 녹음 파일 저장 · 4연타 종료
 

@@ -90,6 +90,11 @@ public class OverlayService extends Service {
     /** 4번 연타 판정: 첫 탭부터 4번째 탭까지 이 시간 안 */
     private static final long QUAD_TAP_MS = 1100;
 
+    /** v1.6 대기 상태 투명도 — 다른 앱 화면을 덜 가리게 살짝 비춘다. */
+    private static final float IDLE_ALPHA = 0.68f;
+    /** 녹음·변환·드래그 중에는 또렷하게. */
+    private static final float ACTIVE_ALPHA = 1.0f;
+
     private static final int MODE_IDLE = 0;
     private static final int MODE_DICTATE = 1;   // 두 번 톡톡 → 글자 변환
     private static final int MODE_FILE = 2;      // 길게 꾹 → 파일 저장
@@ -351,6 +356,7 @@ public class OverlayService extends Service {
             bubbleRoot = null;
             return;
         }
+        applyModeVisual(MODE_IDLE); // 대기 상태 투명도(0.68)로 시작
         bubbleRoot.setOnTouchListener(new View.OnTouchListener() {
             @Override
             public boolean onTouch(View v, MotionEvent event) {
@@ -386,6 +392,8 @@ public class OverlayService extends Service {
                             ui.removeCallbacks(longPress);
                             // 드래그는 탭이 아니므로 4연타 판정에서도 뺀다
                             tapRing.clear();
+                            // v1.6: 손으로 옮기는 동안은 또렷하게(1.0)
+                            setBubbleAlpha(ACTIVE_ALPHA);
                         }
                         if (dragging) {
                             bubbleParams.x = dragStartX + (int) dx;
@@ -405,6 +413,8 @@ public class OverlayService extends Service {
                             snapToEdge();
                             Prefs.putInt(OverlayService.this, Prefs.K_X, bubbleParams.x);
                             Prefs.putInt(OverlayService.this, Prefs.K_Y, bubbleParams.y);
+                            // v1.6: 손을 떼면 대기 상태 투명도로 돌아간다(녹음 중이면 또렷하게 유지)
+                            setBubbleAlpha(mode == MODE_IDLE ? IDLE_ALPHA : ACTIVE_ALPHA);
                         }
                         return true;
                     default:
@@ -571,6 +581,22 @@ public class OverlayService extends Service {
             bubbleDot.setVisibility(View.GONE);
             animateScale(1f);
         }
+        // v1.6: 대기(A1) 일 때만 살짝 비추고, 녹음·변환 중에는 또렷하게 1.0
+        setBubbleAlpha(m == MODE_IDLE ? IDLE_ALPHA : ACTIVE_ALPHA);
+    }
+
+    /** 동그라미 전체(테두리 포함)의 투명도. */
+    private void setBubbleAlpha(float alpha) {
+        if (bubbleFrame == null) {
+            return;
+        }
+        float a = Math.max(0f, Math.min(1f, alpha));
+        if (Math.abs(bubbleFrame.getAlpha() - a) < 0.01f) {
+            bubbleFrame.setAlpha(a);
+            return;
+        }
+        bubbleFrame.animate().cancel();
+        bubbleFrame.animate().alpha(a).setDuration(140).start();
     }
 
     private void animateScale(float target) {
