@@ -1,6 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- v1.6 홈 화면 1×1 위젯: 플로팅 버튼과 같은 다크네이비 둥근 배경 -->
+<!-- v1.7: 위젯 배경을 없앴다(투명). 예전 다크네이비 네모는 더 쓰지 않는다. -->
 <shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
-    <solid android:color="#0F1E3A"/>
-    <corners android:radius="18dp"/>
+    <solid android:color="#00000000"/>
 </shape>

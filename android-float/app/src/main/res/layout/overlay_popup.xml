@@ -1,11 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- v1.7 복사/수정 팝업: 여백·헤더를 걷어내고 [텍스트 상자] + [복사] [닫기] 만 컴팩트하게 -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:orientation="vertical"
     android:background="@drawable/bg_popup"
-    android:padding="20dp">
+    android:padding="8dp">
 
+    <!-- 아주 작은 머리줄: 제목(10sp) + 닫기(✕) -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
@@ -18,35 +20,40 @@
             android:layout_height="wrap_content"
             android:layout_weight="1"
             android:text="A1 음성"
-            android:textColor="@color/text_primary"
-            android:textSize="16sp"
+            android:includeFontPadding="false"
+            android:textColor="@color/text_secondary"
+            android:textSize="10sp"
             android:textStyle="bold"/>
 
         <TextView
             android:id="@+id/popup_close"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:padding="8dp"
+            android:paddingLeft="8dp"
+            android:paddingRight="2dp"
+            android:paddingTop="0dp"
+            android:paddingBottom="0dp"
+            android:includeFontPadding="false"
             android:text="✕"
             android:textColor="@color/text_secondary"
-            android:textSize="17sp"/>
+            android:textSize="13sp"/>
     </LinearLayout>
 
     <TextView
         android:id="@+id/popup_msg"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="2dp"
         android:text=""
+        android:includeFontPadding="false"
         android:textColor="@color/text_secondary"
-        android:textSize="12sp"/>
+        android:textSize="11sp"/>
 
     <ProgressBar
         android:id="@+id/popup_progress"
         style="?android:attr/progressBarStyleHorizontal"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="14dp"
+        android:layout_marginTop="6dp"
         android:indeterminate="true"
         android:visibility="gone"/>
 
@@ -54,18 +61,18 @@
         android:id="@+id/popup_text"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="12dp"
+        android:layout_marginTop="6dp"
         android:background="@drawable/bg_input"
-        android:padding="14dp"
-        android:minLines="4"
-        android:maxLines="10"
-        android:maxHeight="240dp"
+        android:padding="10dp"
+        android:minLines="3"
+        android:maxLines="8"
+        android:maxHeight="200dp"
         android:scrollbars="vertical"
         android:gravity="top|start"
         android:textColor="@color/text_primary"
         android:textColorHint="@color/text_secondary"
-        android:textSize="16sp"
-        android:lineSpacingExtra="3dp"
+        android:textSize="15sp"
+        android:lineSpacingExtra="2dp"
         android:hint="변환된 글이 여기에 표시됩니다"
         android:inputType="textMultiLine|textCapSentences"
         android:visibility="gone"/>
@@ -74,7 +81,7 @@
         android:id="@+id/popup_buttons"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="14dp"
+        android:layout_marginTop="6dp"
         android:orientation="horizontal"
         android:gravity="end">
 
@@ -83,28 +90,30 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:background="@drawable/bg_btn_small"
-            android:paddingLeft="18dp"
-            android:paddingRight="18dp"
-            android:paddingTop="11dp"
-            android:paddingBottom="11dp"
+            android:paddingLeft="14dp"
+            android:paddingRight="14dp"
+            android:paddingTop="7dp"
+            android:paddingBottom="7dp"
+            android:includeFontPadding="false"
             android:text="닫기"
             android:textColor="@color/brand_blue"
-            android:textSize="13sp"
+            android:textSize="12sp"
             android:textStyle="bold"/>
 
         <TextView
             android:id="@+id/popup_primary"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginLeft="8dp"
+            android:layout_marginLeft="6dp"
             android:background="@drawable/bg_btn_primary"
-            android:paddingLeft="18dp"
-            android:paddingRight="18dp"
-            android:paddingTop="11dp"
-            android:paddingBottom="11dp"
+            android:paddingLeft="14dp"
+            android:paddingRight="14dp"
+            android:paddingTop="7dp"
+            android:paddingBottom="7dp"
+            android:includeFontPadding="false"
             android:text="복사"
             android:textColor="@color/white"
-            android:textSize="13sp"
+            android:textSize="12sp"
             android:textStyle="bold"/>
     </LinearLayout>
 </LinearLayout>

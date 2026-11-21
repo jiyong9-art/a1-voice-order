@@ -70,6 +70,12 @@ import android.text.style.ForegroundColorSpan;
  *
  * v1.5 반응 속도: 두 번 톡톡·길게 꾹이 감지되면 마이크를 여는 prepare/start 보다
  * 먼저 화면 표시와 15ms 진동을 처리한다.
+ *
+ * v1.7
+ *  - 플로팅 버튼은 동그라미 배경 없이 검은 A1 글자만 떠 있다(다른 앱을 가리지 않게).
+ *  - 두 번 톡톡으로 말하는 동안 작은 실시간 자막 말풍선이 뜨고(부분 결과),
+ *    말이 끝나면 그 창을 닫고 OpenAI 가 돌려준 정확한 글자를 입력칸에 넣는다.
+ *    소리는 AudioRecord(PCM·WAV) 한 줄로만 받아 자막과 마이크를 다투지 않는다.
  */
 public class OverlayService extends Service {
 
@@ -90,9 +96,8 @@ public class OverlayService extends Service {
     /** 4번 연타 판정: 첫 탭부터 4번째 탭까지 이 시간 안 */
     private static final long QUAD_TAP_MS = 1100;
 
-    /** v1.6 대기 상태 투명도 — 다른 앱 화면을 덜 가리게 살짝 비춘다. */
-    private static final float IDLE_ALPHA = 0.68f;
-    /** 녹음·변환·드래그 중에는 또렷하게. */
+    /** v1.7 — 반투명 없이 항상 또렷하게(배경이 없어 가릴 것이 없다). */
+    private static final float IDLE_ALPHA = 1.0f;
     private static final float ACTIVE_ALPHA = 1.0f;
 
     private static final int MODE_IDLE = 0;
@@ -124,6 +129,13 @@ public class OverlayService extends Service {
     private int touchSlop;
 
     private MediaRecorder recorder;
+    /** v1.7 두 번 톡톡(글자 변환)용 PCM 녹음기 — 같은 소리를 실시간 자막에도 흘려보낸다. */
+    private PcmRecorder pcm;
+    /** v1.7 말하는 동안의 실시간 자막 */
+    private LiveCaption caption;
+    private View liveRoot;
+    private TextView liveText;
+    private WindowManager.LayoutParams liveParams;
     private File recFile;
     private boolean recording;
     private int mode = MODE_IDLE;
@@ -348,7 +360,7 @@ public class OverlayService extends Service {
                 WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
                 PixelFormat.TRANSLUCENT);
         bubbleParams.gravity = Gravity.TOP | Gravity.START;
-        bubbleParams.x = Prefs.getInt(this, Prefs.K_X, screenW() - dp(78));
+        bubbleParams.x = Prefs.getInt(this, Prefs.K_X, screenW() - dp(64));
         bubbleParams.y = Prefs.getInt(this, Prefs.K_Y, (int) (screenH() * 0.60));
 
         clampBubble();
@@ -427,7 +439,7 @@ public class OverlayService extends Service {
     }
 
     private void clampBubble() {
-        int w = bubbleRoot == null ? dp(62) : Math.max(bubbleRoot.getWidth(), dp(62));
+        int w = bubbleRoot == null ? dp(56) : Math.max(bubbleRoot.getWidth(), dp(56));
         int maxX = Math.max(0, screenW() - w - dp(6));
         int maxY = Math.max(0, screenH() - w - dp(6));
         bubbleParams.x = Math.max(dp(4), Math.min(bubbleParams.x, maxX));
@@ -435,7 +447,7 @@ public class OverlayService extends Service {
     }
 
     private void snapToEdge() {
-        int w = bubbleRoot == null ? dp(62) : Math.max(bubbleRoot.getWidth(), dp(62));
+        int w = bubbleRoot == null ? dp(56) : Math.max(bubbleRoot.getWidth(), dp(56));
         int center = bubbleParams.x + w / 2;
         bubbleParams.x = center < screenW() / 2 ? dp(6) : screenW() - w - dp(6);
         clampBubble();
@@ -478,6 +490,23 @@ public class OverlayService extends Service {
         converting = false;
         ui.removeCallbacks(tick);
         ui.removeCallbacks(maxStop);
+        PcmRecorder p = pcm;
+        pcm = null;
+        if (p != null) {
+            try {
+                p.stop();
+            } catch (Exception ignored) {
+            }
+        }
+        LiveCaption c = caption;
+        caption = null;
+        if (c != null) {
+            try {
+                c.stop();
+            } catch (Exception ignored) {
+            }
+        }
+        hideLiveCaption();
         if (recorder != null) {
             try {
                 recorder.stop();
@@ -558,8 +587,8 @@ public class OverlayService extends Service {
     /* ------------------------------------------------------------------ */
 
     /**
-     * 0 = 대기(A1), 1 = 글자 변환(살짝 커지고 하늘색 링), 2 = 녹음 파일 저장(작아지고 흰 점).
-     * 색은 다크네이비 + 흰색만 쓴다(빨간색 금지 — 밖에서 티 나지 않게).
+     * 0 = 대기(A1 글자), 1 = 글자 변환(살짝 커지고 얇은 테두리), 2 = 녹음 파일 저장(작아지고 검은 점).
+     * v1.7부터 배경(원)은 없다 — 글자만 있고, 빨간색도 쓰지 않는다.
      */
     private void applyModeVisual(int m) {
         if (bubbleFrame == null || bubbleLogo == null || bubbleDot == null) {
@@ -570,13 +599,13 @@ public class OverlayService extends Service {
             bubbleLogo.setVisibility(View.GONE);
             bubbleDot.setVisibility(View.VISIBLE);
             bubbleDot.setAlpha(1f);
-            animateScale(0.66f);
+            animateScale(0.7f);
         } else if (m == MODE_DICTATE) {
             bubbleLogo.setVisibility(View.VISIBLE);
             bubbleLogo.setAlpha(1f);
             bubbleDot.setVisibility(View.GONE);
-            animateScale(1.06f);
-            startPulse();
+            animateScale(1.12f);
+            stopPulse();   // v1.7: 원 테두리 대신 글자 크기로만 알린다
         } else {
             stopPulse();
             bubbleLogo.setVisibility(View.VISIBLE);
@@ -738,9 +767,198 @@ public class OverlayService extends Service {
         }
         vibrate(15);
         applyModeVisual(MODE_DICTATE);
-        if (!startRecording(false)) {
+        if (!startDictationRecording()) {
             applyModeVisual(MODE_IDLE);
-            bubbleState.setVisibility(View.GONE);
+            if (bubbleState != null) {
+                bubbleState.setVisibility(View.GONE);
+            }
+        }
+    }
+
+    /**
+     * v1.7 글자 변환 녹음: 소리는 AudioRecord(PCM→WAV) 한 줄로만 받고,
+     * 같은 조각을 실시간 자막에도 흘려보낸다(마이크를 둘이 나눠 쓰지 않는다).
+     */
+    private boolean startDictationRecording() {
+        try {
+            File dir = new File(getCacheDir(), "rec");
+            if (!dir.exists()) {
+                dir.mkdirs();
+            }
+            clearOldTemp(dir);
+            sessionGen++;
+            converting = false;
+            recFile = new File(dir, "a1_dictate_" + System.currentTimeMillis() + ".wav");
+
+            pcm = new PcmRecorder();
+            final boolean ok = pcm.start(recFile, new PcmRecorder.ChunkListener() {
+                @Override
+                public void onChunk(byte[] data, int length) {
+                    LiveCaption c = caption;
+                    if (c != null) {
+                        c.feed(data, length);
+                    }
+                }
+            });
+            if (!ok) {
+                String why = pcm == null ? null : pcm.lastError();
+                pcm = null;
+                if (recFile != null) {
+                    recFile.delete();
+                    recFile = null;
+                }
+                showMessage("녹음 시작 실패",
+                        why == null || why.isEmpty() ? "마이크를 열지 못했습니다." : why);
+                return false;
+            }
+
+            mode = MODE_DICTATE;
+            recording = true;
+            recStartMs = SystemClock.elapsedRealtime();
+            setTimerText(0);
+            ui.post(tick);
+            ui.removeCallbacks(maxStop);
+            ui.postDelayed(maxStop, MAX_MS);
+            startLiveCaption();
+            return true;
+        } catch (Exception e) {
+            if (pcm != null) {
+                pcm.stop();
+                pcm = null;
+            }
+            recording = false;
+            mode = MODE_IDLE;
+            if (recFile != null) {
+                recFile.delete();
+            }
+            showMessage("녹음 시작 실패", readable(e));
+            return false;
+        }
+    }
+
+    /* ------------------------------------------------------------------ */
+    /* 실시간 자막 (말하는 동안)                                            */
+    /* ------------------------------------------------------------------ */
+
+    private void startLiveCaption() {
+        stopLiveCaption();
+        LiveCaption c = new LiveCaption(this, new LiveCaption.Listener() {
+            @Override
+            public void onPartial(String text) {
+                updateLiveCaption(text);
+            }
+
+            @Override
+            public void onDraft(String text) {
+                updateLiveCaption(text);
+            }
+
+            @Override
+            public void onUnavailable() {
+                hideLiveCaption();
+            }
+        });
+        if (c.start()) {
+            caption = c;
+            updateLiveCaption("듣는 중…");
+        } else {
+            caption = null;
+        }
+    }
+
+    private void stopLiveCaption() {
+        LiveCaption c = caption;
+        caption = null;
+        if (c != null) {
+            c.stop();
+        }
+        hideLiveCaption();
+    }
+
+    /** 자막 창을 띄우고 글자를 갱신한다. (이미 떠 있으면 글자만 바뀐다) */
+    private void updateLiveCaption(String text) {
+        if (quitting) {
+            return;
+        }
+        String t = text == null ? "" : text.trim();
+        if (t.isEmpty()) {
+            t = "듣는 중…";
+        }
+        if (liveRoot == null) {
+            showLiveCaption();
+        }
+        if (liveText != null) {
+            liveText.setText(t);
+        }
+        ui.postDelayed(new Runnable() {
+            @Override
+            public void run() {
+                positionLiveCaption();
+            }
+        }, 30);
+    }
+
+    private void showLiveCaption() {
+        if (liveRoot != null || wm == null) {
+            return;
+        }
+        liveRoot = LayoutInflater.from(this).inflate(R.layout.overlay_live, null);
+        liveText = (TextView) liveRoot.findViewById(R.id.live_text);
+        liveParams = new WindowManager.LayoutParams(
+                WindowManager.LayoutParams.WRAP_CONTENT,
+                WindowManager.LayoutParams.WRAP_CONTENT,
+                Build.VERSION.SDK_INT >= 26
+                        ? WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
+                        : WindowManager.LayoutParams.TYPE_PHONE,
+                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
+                        | WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE
+                        | WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL,
+                PixelFormat.TRANSLUCENT);
+        liveParams.gravity = Gravity.TOP | Gravity.START;
+        liveParams.x = Math.max(dp(4), bubbleParams == null ? dp(4) : bubbleParams.x);
+        liveParams.y = Math.max(dp(4), bubbleParams == null ? dp(120) : bubbleParams.y - dp(48));
+        try {
+            wm.addView(liveRoot, liveParams);
+        } catch (Exception e) {
+            liveRoot = null;
+            liveText = null;
+            liveParams = null;
+        }
+    }
+
+    private void hideLiveCaption() {
+        if (liveRoot != null && wm != null) {
+            try {
+                wm.removeView(liveRoot);
+            } catch (Exception ignored) {
+            }
+        }
+        liveRoot = null;
+        liveText = null;
+        liveParams = null;
+    }
+
+    /** 자막 말풍선을 플로팅 버튼 바로 위(자리가 없으면 아래)에 붙인다. */
+    private void positionLiveCaption() {
+        if (liveRoot == null || liveParams == null || bubbleParams == null || wm == null) {
+            return;
+        }
+        int w = liveRoot.getWidth() > 0 ? liveRoot.getWidth() : dp(150);
+        int h = liveRoot.getHeight() > 0 ? liveRoot.getHeight() : dp(34);
+        int bw = bubbleRoot != null && bubbleRoot.getWidth() > 0 ? bubbleRoot.getWidth() : dp(56);
+        int bh = bubbleRoot != null && bubbleRoot.getHeight() > 0 ? bubbleRoot.getHeight() : dp(56);
+        int x = bubbleParams.x + bw / 2 - w / 2;
+        x = Math.max(dp(4), Math.min(x, Math.max(dp(4), screenW() - w - dp(4))));
+        int y = bubbleParams.y - h - dp(6);
+        if (y < dp(4)) {
+            y = bubbleParams.y + bh + dp(6);
+        }
+        y = Math.max(dp(2), Math.min(y, Math.max(dp(2), screenH() - h - dp(8))));
+        liveParams.x = x;
+        liveParams.y = y;
+        try {
+            wm.updateViewLayout(liveRoot, liveParams);
+        } catch (Exception ignored) {
         }
     }
 
@@ -803,12 +1021,13 @@ public class OverlayService extends Service {
         ui.removeCallbacks(tick);
         ui.removeCallbacks(maxStop);
         long dur = SystemClock.elapsedRealtime() - recStartMs;
-        try {
-            recorder.stop();
-        } catch (Exception ignored) {
-            // 너무 짧으면 stop() 이 예외를 던진다.
+
+        PcmRecorder p = pcm;
+        pcm = null;
+        if (p != null) {
+            p.stop();   // WAV 헤더에 실제 길이를 채워 파일을 닫는다
         }
-        cleanupRecorder();
+        stopLiveCaption();   // 말이 끝났으니 자막 창을 닫는다(정확한 글자는 곧 OpenAI 결과로 대체)
         applyModeVisual(MODE_IDLE);
         vibrate(25);
 
@@ -1197,6 +1416,7 @@ public class OverlayService extends Service {
         if (popupRoot == null) {
             return;
         }
+        popupTitle.setVisibility(View.VISIBLE);
         popupTitle.setText("A1 음성");
         popupMsg.setText("음성을 글로 바꾸고 있어요…");
         popupProgress.setVisibility(View.VISIBLE);
@@ -1217,8 +1437,9 @@ public class OverlayService extends Service {
         if (popupRoot == null) {
             return;
         }
-        popupTitle.setText("A1 음성 변환");
-        popupMsg.setText("클립보드에 복사했어요 · 글자를 고쳐서 다시 복사할 수 있어요");
+        // v1.7 슬림 팝업: 제목줄 없이 텍스트 상자 + [복사] [닫기] 만 남긴다.
+        popupTitle.setVisibility(View.GONE);
+        popupMsg.setText("클립보드에 복사했어요 · 고쳐서 다시 복사");
         popupProgress.setVisibility(View.GONE);
         popupEdit.setVisibility(View.VISIBLE);
         popupEdit.setText(text);
@@ -1232,7 +1453,7 @@ public class OverlayService extends Service {
             public void onClick(View v) {
                 String t = popupEdit.getText().toString().trim();
                 copyToClipboard(t);
-                popupMsg.setText("클립보드에 복사했어요 ✓");
+                popupMsg.setText("복사했어요 ✓");
             }
         });
         if (bubbleState != null) {
@@ -1247,6 +1468,7 @@ public class OverlayService extends Service {
         if (popupRoot == null) {
             return;
         }
+        popupTitle.setVisibility(View.VISIBLE);
         popupTitle.setText("변환 실패");
         popupMsg.setText(message == null || message.isEmpty() ? "다시 시도해 주세요." : message);
         popupProgress.setVisibility(View.GONE);
@@ -1281,6 +1503,7 @@ public class OverlayService extends Service {
         if (popupRoot == null) {
             return;
         }
+        popupTitle.setVisibility(View.VISIBLE);
         popupTitle.setText(title);
         popupMsg.setText(message);
         popupProgress.setVisibility(View.GONE);

@@ -123,7 +123,8 @@ public class A1VoiceAccessibilityService extends AccessibilityService {
         if (target == null) {
             return false;
         }
-        final String before = textOf(target);
+        // v1.7: 네이트온 '메시지 보내기' 처럼 입력창이 비었을 때 보이는 힌트는 글자로 치지 않는다.
+        final String before = enteredText(target);
 
         // 붙여넣기 경로를 위해 클립보드에도 넣어 둔다(실패해도 복사는 남는다).
         try {
@@ -202,7 +203,7 @@ public class A1VoiceAccessibilityService extends AccessibilityService {
         if (f == null) {
             return false;
         }
-        String now = textOf(f);
+        String now = enteredText(f);
         if (now.isEmpty()) {
             return false;
         }
@@ -291,6 +292,66 @@ public class A1VoiceAccessibilityService extends AccessibilityService {
         CharSequence cs = n.getText();
         return cs == null ? "" : cs.toString();
     }
+
+    /**
+     * 입력칸에 실제로 들어 있는 글자. 힌트(예: 네이트온 '메시지 보내기', 'Aa')는
+     * 빈 칸과 같게 취급한다 — 그래야 힌트 뒤에 글자가 붙는 일이 없다.
+     */
+    private static String enteredText(AccessibilityNodeInfo n) {
+        if (n == null) {
+            return "";
+        }
+        String text = textOf(n);
+        if (text.trim().isEmpty()) {
+            return "";
+        }
+        if (isHint(n)) {
+            return "";
+        }
+        return text;
+    }
+
+    /** 이 글자가 힌트인지: 시스템 플래그(API 26+) + 대표 힌트 문자열 둘 다 본다. */
+    private static boolean isHint(AccessibilityNodeInfo n) {
+        if (n == null) {
+            return false;
+        }
+        try {
+            if (n.isShowingHintText()) {
+                return true;
+            }
+        } catch (Exception ignored) {
+        }
+        try {
+            CharSequence hint = n.getHintText();
+            CharSequence text = n.getText();
+            if (hint != null && text != null
+                    && hint.toString().trim().equalsIgnoreCase(text.toString().trim())) {
+                return true;
+            }
+        } catch (Exception ignored) {
+        }
+        String t = textOf(n).trim();
+        if (t.isEmpty() || t.length() > 40) {
+            return false;
+        }
+        for (String h : HINT_WORDS) {
+            if (t.equalsIgnoreCase(h)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** isShowingHintText 를 안 주는 앱을 위한 대표 힌트 문자열 (네이트온·카톡·문자 등) */
+    private static final String[] HINT_WORDS = {
+            "메시지 보내기", "메시지를 보내기", "메시지를 입력하세요", "메시지를 입력해 주세요",
+            "메시지를 입력해주세요", "메시지 입력", "메세지 보내기", "메세지를 입력하세요",
+            "메시지 보내기…", "메시지를 입력…", "대화를 입력하세요", "내용을 입력하세요",
+            "텍스트를 입력하세요", "여기에 입력하세요", "여기에 메시지를 입력하세요",
+            "Type a message", "Type a message…", "Send a message", "Enter message",
+            "Message", "Message…", "Aa"
+    };
 
     private static void sleep(long ms) {
         try {

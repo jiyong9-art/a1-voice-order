@@ -1,7 +1,7 @@
 {
-  "versionCode": 7,
-  "versionName": "1.6",
+  "versionCode": 8,
+  "versionName": "1.7",
   "url": "https://a1kr.com/app/a1-voice.apk",
   "released": "2026-11-21",
-  "notes": "홈 화면 1×1 위젯 · 상단 빠른 설정 타일로 한 번에 켜고 끄기 · 대기 중에는 반투명(0.68)"
+  "notes": "플로팅은 A1 글자만(배경 없음) · 말하는 동안 실시간 자막 · 끝나면 정확한 글자로 교체 · 네이트온 힌트 겹침 수정 · 복사 창 슬림화"
 }

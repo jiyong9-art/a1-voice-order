@@ -14,6 +14,7 @@ import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
+import java.util.Locale;
 
 /**
  * a1-voice-order 서버의 Whisper 변환 API 호출기.
@@ -264,7 +265,7 @@ public final class Transcriber {
             conn.setDoOutput(true);
             String headText = "--" + boundary + "\r\n"
                     + "Content-Disposition: form-data; name=\"audio\"; filename=\"" + audio.getName() + "\"\r\n"
-                    + "Content-Type: audio/mp4\r\n\r\n";
+                    + "Content-Type: " + mimeFor(audio.getName()) + "\r\n\r\n";
             byte[] headBytes = headText.getBytes(StandardCharsets.UTF_8);
             byte[] tailBytes = ("\r\n--" + boundary + "--\r\n").getBytes(StandardCharsets.UTF_8);
             conn.setFixedLengthStreamingMode(headBytes.length + (int) audio.length() + tailBytes.length);
@@ -301,6 +302,33 @@ public final class Transcriber {
                 conn.disconnect();
             }
         }
+    }
+
+    /**
+     * 파일 확장자에 맞는 Content-Type (v1.7).
+     * 두 번 톡톡 녹음이 .m4a 에서 .wav 로 바뀌어, 예전처럼 audio/mp4 로 고정하면 서버가 열지 못한다.
+     */
+    private static String mimeFor(String fileName) {
+        String n = fileName == null ? "" : fileName.toLowerCase(Locale.US);
+        if (n.endsWith(".wav")) {
+            return "audio/wav";
+        }
+        if (n.endsWith(".mp3")) {
+            return "audio/mpeg";
+        }
+        if (n.endsWith(".ogg")) {
+            return "audio/ogg";
+        }
+        if (n.endsWith(".flac")) {
+            return "audio/flac";
+        }
+        if (n.endsWith(".aac")) {
+            return "audio/aac";
+        }
+        if (n.endsWith(".amr")) {
+            return "audio/amr";
+        }
+        return "audio/mp4";
     }
 
     private static String readAll(InputStream in) throws Exception {
