@@ -30,10 +30,23 @@ public class WidgetToggleActivity extends Activity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        if (savedInstanceState == null) {
-            handleToggle();
-        } else {
+        if (savedInstanceState != null) {
+            // 화면 회전 등으로 다시 만들어지면 아무 것도 하지 않고 닫는다.
+            handled = true;
             finish();
+        }
+    }
+
+    /**
+     * 화면이 실제로 떠 있는(onResume) 뒤에 토글한다.
+     * Android 12+ 는 "화면이 보이는 앱"만 포그라운드 서비스를 시작할 수 있으므로
+     * onCreate 보다 onResume 쪽이 더 안전하다.
+     */
+    @Override
+    protected void onResume() {
+        super.onResume();
+        if (!handled) {
+            handleToggle();
         }
     }
 
