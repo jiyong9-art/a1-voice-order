@@ -65,6 +65,8 @@ export async function POST(request: Request) {
         text: "",
         silent: true,
         reason,
+        // 웹 화면은 text 가 비면 이 문구를 그대로 보여 준다.
+        error: "말소리가 들리지 않았습니다. 다시 말씀해 주세요.",
         model: "silence-gate",
         audio: {
           durationSec: profile.durationSec,
@@ -86,6 +88,7 @@ export async function POST(request: Request) {
           text: "",
           silent: true,
           reason: "prompt_echo",
+          error: "말소리가 들리지 않았습니다. 다시 말씀해 주세요.",
           model: result.model,
         });
       }
