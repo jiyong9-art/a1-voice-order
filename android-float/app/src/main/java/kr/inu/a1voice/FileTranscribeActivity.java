@@ -514,10 +514,11 @@ public class FileTranscribeActivity extends Activity {
                 @Override
                 public void run() {
                     jobRunning = false;
+                    setState("변환 완료 · " + finalText.length() + "자 · 이 기기에 저장했어요", -1);
+                    // setState 는 진행바를 켜므로, 완료 상태에서는 아래에서 확실히 감춘다.
                     pb.setIndeterminate(false);
                     pb.setProgress(100);
                     pb.setVisibility(View.GONE);
-                    setState("변환 완료 · " + finalText.length() + "자 · 이 기기에 저장했어요", -1);
                     tvMeta.setText(metaText(finalDur, finalParts));
                     cardResult.setVisibility(View.VISIBLE);
                     tvResultTitle.setText("변환 결과");
