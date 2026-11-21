@@ -63,18 +63,37 @@ export type TranscriptionResult = {
   mocked?: boolean;
   /** 말소리가 아니라 빈칸·환각으로 판단해 비운 경우 (v1.8~) */
   silenced?: "prompt_echo" | "hallucination";
+  /** 토큰 확신도 요약 (gpt-4o-transcribe logprobs, 없으면 없음) */
+  confidence?: { avg: number; min: number };
 };
 
 /**
  * 모델이 돌려준 글에서 빈칸 환각을 걸러낸다 (v1.9).
  * 예: 무음/잡음 → "에이원코리아입니다", 고유명사 목록 전체, "This is a clean audio.", "Thank you."
  */
-function finalizeText(text: string, model: string, prompt: string): TranscriptionResult {
+function finalizeText(
+  text: string,
+  model: string,
+  prompt: string,
+  logprobs?: number[],
+): TranscriptionResult {
   const trimmed = (text ?? "").trim();
   if (trimmed && looksLikeHallucination(trimmed, vocabularyHints(), prompt)) {
-    return { text: "", model, silenced: "hallucination" };
+    return { text: "", model, silenced: "hallucination", confidence: confidenceOf(logprobs) };
   }
-  return { text: trimmed, model };
+  return { text: trimmed, model, confidence: confidenceOf(logprobs) };
+}
+
+/** 토큰 확신도 요약 (없으면 undefined). */
+function confidenceOf(logprobs?: number[]): { avg: number; min: number } | undefined {
+  if (!logprobs || logprobs.length === 0) {
+    return undefined;
+  }
+  const sum = logprobs.reduce((a, b) => a + b, 0);
+  return {
+    avg: Number((sum / logprobs.length).toFixed(3)),
+    min: Number(Math.min(...logprobs).toFixed(3)),
+  };
 }
 
 export async function transcribeAudio(
@@ -102,7 +121,9 @@ export async function transcribeAudio(
   //  - 환각은 audio-guard 의 에너지 게이트 + 글 단계 필터가 막는다.
   const prompt = transcriptionPrompt();
 
-  const attempt = async (model: string) => {
+  type Attempt = { text: string; logprobs?: number[] };
+
+  const attempt = async (model: string, withLogprobs: boolean): Promise<Attempt> => {
     const params: Record<string, unknown> = {
       file: normalized,
       model,
@@ -110,22 +131,49 @@ export async function transcribeAudio(
       prompt,
     };
     // whisper-1만 temperature를 지원합니다.
-    if (model === "whisper-1") params.temperature = 0;
+    if (model === "whisper-1") {
+      params.temperature = 0;
+    } else if (withLogprobs) {
+      // v1.9: 토큰별 확신도(logprob). 잡음·숨소리에서 모델이 문장을 '지어낼' 때 값이 크게 낮아진다.
+      params.response_format = "json";
+      params.include = ["logprobs"];
+    }
     const res = await openai().audio.transcriptions.create(
       params as unknown as Parameters<OpenAI["audio"]["transcriptions"]["create"]>[0],
     );
-    return (res as { text?: string }).text ?? "";
+    const text = (res as { text?: string }).text ?? "";
+    const raw = (res as { logprobs?: Array<{ logprob?: number }> }).logprobs;
+    const logprobs = Array.isArray(raw)
+      ? raw.map((p) => Number(p?.logprob)).filter((n) => Number.isFinite(n))
+      : undefined;
+    return { text, logprobs };
+  };
+
+  // 확신도(logprobs)를 못 받는 환경·모델이면 그것만 빼고 같은 모델로 한 번 더 시도한다.
+  const attemptSafely = async (model: string): Promise<Attempt & { model: string }> => {
+    if (model === "whisper-1") {
+      return { ...(await attempt(model, false)), model };
+    }
+    try {
+      return { ...(await attempt(model, true)), model };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      if (/logprob|include/i.test(message)) {
+        return { ...(await attempt(model, false)), model };
+      }
+      throw err;
+    }
   };
 
   try {
-    const text = await attempt(c.transcribeModel);
-    return finalizeText(text, c.transcribeModel, prompt);
+    const first = await attemptSafely(c.transcribeModel);
+    return finalizeText(first.text, first.model, prompt, first.logprobs);
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     // 모델 접근 권한이 없거나 이름이 바뀐 경우 whisper-1로 한 번 더 시도합니다.
     if (c.transcribeModel !== "whisper-1" && /model|not found|does not exist|invalid|unsupported/i.test(message)) {
-      const text = await attempt("whisper-1");
-      return finalizeText(text, "whisper-1", prompt);
+      const second = await attemptSafely("whisper-1");
+      return finalizeText(second.text, second.model, prompt, second.logprobs);
     }
     throw err;
   }
