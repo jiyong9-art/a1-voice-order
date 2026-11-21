@@ -474,28 +474,39 @@ function isPromptTextEcho(flat: string, promptText?: string): boolean {
 
 /** 힌트(고유명사·직원 이름)를 여러 개 나열한 '목록 에코'인지. */
 function isHintListEcho(flat: string, hintSet: Set<string>): boolean {
-  const found: string[] = [];
+  // 목록에서 지울 말(보통명사 포함)과, '이름'으로 셀 말(보통명사 제외)을 따로 고른다.
+  const matched: string[] = [];
+  const names: string[] = [];
   for (const hint of hintSet) {
-    if (hint.length >= 2 && !GENERIC_HINTS.has(hint) && flat.includes(hint)) {
-      found.push(hint);
+    if (hint.length < 2 || !flat.includes(hint)) {
+      continue;
+    }
+    matched.push(hint);
+    if (!GENERIC_HINTS.has(hint)) {
+      names.push(hint);
     }
   }
-  if (found.length < 2) {
+  if (names.length < 2) {
     return false;
   }
   let rest = flat;
-  for (const hint of found.sort((a, b) => b.length - a.length)) {
+  for (const hint of matched.sort((a, b) => b.length - a.length)) {
     rest = rest.split(hint).join("");
   }
-  // 이름만 줄줄이 (\"에이원코리아 A1 에이원 문지용 …\")
-  if (rest.length <= 3) {
+  // 이름만 줄줄이 ("에이원코리아 A1 에이원 문지용 …")
+  if (rest.length === 0) {
+    return true;
+  }
+  // 목록 + 조사 정도
+  if (names.length >= 3 && rest.length <= 2) {
     return true;
   }
   const ratio = rest.length / flat.length;
-  if (found.length >= 3 && ratio < 0.2) {
+  if (names.length >= 3 && ratio < 0.2) {
     return true;
   }
-  return found.length >= 5 && ratio < 0.5;
+  // 이름 여러 개를 거의 다 나열 (실제 지시문은 뒤에 할 일이 붙는다)
+  return names.length >= 5 && rest.length <= 12;
 }
 
 /**

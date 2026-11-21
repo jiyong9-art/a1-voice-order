@@ -192,5 +192,20 @@ check(
   false,
 );
 
+check(
+  "이름 여러 명 + 할 일이 붙은 실제 지시 → 실제 말",
+  looksLikeHallucination(
+    "문지용 사장님 이광훈 과장님 송현준 대리님 백남우 님 김남국 님 한원석 님 차정호 님 유병은 님 모두 내일 회의 참석해 주세요",
+    hints,
+    PROMPT,
+  ),
+  false,
+);
+check(
+  "'이광훈 김남국에게 전달해' → 실제 말",
+  looksLikeHallucination("이광훈 김남국에게 전달해", hints, PROMPT),
+  false,
+);
+
 console.log(failed === 0 ? "\n전부 통과" : `\n${failed}건 실패`);
 process.exit(failed === 0 ? 0 : 1);
