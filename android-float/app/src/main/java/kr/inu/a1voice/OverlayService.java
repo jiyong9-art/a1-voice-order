@@ -710,7 +710,7 @@ public class OverlayService extends Service {
                 dir.mkdirs();
             }
             clearOldTemp(dir);
-            final int gen = ++sessionGen;
+            sessionGen++;
             recFile = new File(dir, (fileMode ? "a1_rec_" : "a1_dictate_") + System.currentTimeMillis() + ".m4a");
 
             recorder = Build.VERSION.SDK_INT >= 31 ? new MediaRecorder(this) : new MediaRecorder();
@@ -826,7 +826,8 @@ public class OverlayService extends Service {
             if (src != null) {
                 src.delete();
             }
-            Toast.makeText(this, "녹음이 너무 짧아요", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, stopped ? "녹음이 너무 짧아요" : "녹음 저장 실패",
+                    Toast.LENGTH_SHORT).show();
             return;
         }
         io.execute(new Runnable() {
