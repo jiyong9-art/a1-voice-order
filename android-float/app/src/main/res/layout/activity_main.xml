@@ -59,7 +59,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="2dp"
-                    android:text="어떤 앱 위에서든, 두 번 톡톡 → 말하면 글로"
+                    android:text="두 번 톡톡 → 글로 · 길게 꾹 → 녹음 파일로"
                     android:textColor="@color/text_secondary"
                     android:textSize="12sp"/>
             </LinearLayout>
@@ -420,7 +420,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="8dp"
-                android:text="1. 이름과 팀 비밀번호를 넣고 [저장] → 로그인이 확인되면 아래 버튼으로 A1 동그라미를 띄웁니다.\n2. 카톡·문자·네이트온 어디서든 A1을 두 번 톡톡 누릅니다.\n3. 말이 끝나면 A1을 한 번 누릅니다. (2분이 지나면 자동 종료)\n4. 접근성을 켜 두면 말이 끝난 자리(입력칸)에 글자가 바로 들어갑니다. 꺼 두면 지금처럼 복사 창이 떠요.\n5. 폰에 있는 통화·회의 녹음은 플로팅 버튼 아래 [음성 파일 변환]에서 열면 15분씩 나눠 글로 바꾸고, 기록은 이 폰에만 저장됩니다."
+                android:text="1. 이름과 팀 비밀번호를 넣고 [저장] → 로그인이 확인되면 아래 버튼으로 A1 동그라미를 띄웁니다.\n2. 카톡·문자·네이트온 어디서든 A1을 두 번 톡톡 누릅니다.\n3. 말이 끝나면 A1을 한 번 누릅니다. (2분이 지나면 자동 종료)\n4. 접근성을 켜 두면 말이 끝난 자리(입력칸)에 글자가 바로 들어갑니다. 꺼 두면 지금처럼 복사 창이 떠요.\n5. A1을 길게 꾹 누르면 조용히 녹음 파일(.m4a) 저장이 시작됩니다. 다시 한 번 톡 누르면 폰의 Recordings/A1녹음 폴더에 저장 (최대 60분, 빨간 표시 없이 작아지고 흰 점만).\n6. A1을 빠르게 4번 누르면 플로팅이 꺼집니다.\n7. 폰에 있는 통화·회의 녹음은 플로팅 버튼 아래 [음성 파일 변환]에서 열면 15분씩 나눠 글로 바꾸고, 기록은 이 폰에만 저장됩니다."
                 android:textColor="@color/text_secondary"
                 android:textSize="12sp"
                 android:lineSpacingExtra="4dp"/>

@@ -30,6 +30,8 @@ public class MainActivity extends Activity {
 
     private static final int REQ_MIC = 11;
     private static final int REQ_NOTI = 12;
+    /** Android 9 이하에서 Recordings 폴더에 녹음 파일을 쓰기 위한 저장소 권한 */
+    private static final int REQ_STORAGE = 13;
 
     private TextView tvOverlay;
     private TextView btnOverlay;
@@ -271,7 +273,7 @@ public class MainActivity extends Activity {
         }
 
         if (on) {
-            tvToggleHint.setText("지금 A1 동그라미가 떠 있어요. 다른 앱을 열어도 위에 남습니다.");
+            tvToggleHint.setText("지금 A1 동그라미가 떠 있어요. 두 번 톡톡 = 글로 · 길게 꾹 = 녹음 파일 · 빠르게 4번 = 끄기");
         } else if (!loggedIn) {
             tvToggleHint.setText("이름과 팀 비밀번호를 넣고 [저장]을 누르면 서버 로그인을 확인한 뒤 켜집니다.");
         } else {
@@ -326,6 +328,17 @@ public class MainActivity extends Activity {
             return;
         }
         requestPermissions(new String[]{Manifest.permission.RECORD_AUDIO}, REQ_MIC);
+    }
+
+    /** Android 9 이하만: 녹음 파일을 공용 Recordings 폴더에 저장하려면 저장소 권한이 필요하다. */
+    private void askStorageLegacy() {
+        if (Build.VERSION.SDK_INT >= 29 || Build.VERSION.SDK_INT < 23) {
+            return;
+        }
+        if (checkSelfPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED) {
+            return;
+        }
+        requestPermissions(new String[]{Manifest.permission.WRITE_EXTERNAL_STORAGE}, REQ_STORAGE);
     }
 
     private void askNoti() {
@@ -501,6 +514,7 @@ public class MainActivity extends Activity {
     }
 
     private void startFloating(final boolean showToast) {
+        askStorageLegacy();
         if (!isLoggedIn()) {
             Toast.makeText(this, "로그인 확인 후에 플로팅을 켤 수 있어요.", Toast.LENGTH_LONG).show();
             refresh();

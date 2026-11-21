@@ -8,12 +8,13 @@
     android:clipToPadding="false">
 
     <FrameLayout
+        android:id="@+id/bubble_frame"
         android:layout_width="80dp"
         android:layout_height="80dp"
         android:clipChildren="false"
         android:clipToPadding="false">
 
-        <!-- 녹음 중에만 보이는 하늘색 테두리 펄스 -->
+        <!-- 변환(두 번 톡톡) 중에만 보이는 하늘색 테두리 펄스 -->
         <View
             android:id="@+id/bubble_ring"
             android:layout_width="62dp"
@@ -30,14 +31,28 @@
             android:layout_gravity="center"
             android:background="@drawable/bg_bubble"/>
 
-        <!-- 가운데 흰색 마이크 -->
-        <ImageView
-            android:id="@+id/bubble_mic"
-            android:layout_width="26dp"
-            android:layout_height="26dp"
+        <!-- 평상시 가운데 흰색 A1 (마이크 대신 — 녹음 앱인지 티 안 나게) -->
+        <TextView
+            android:id="@+id/bubble_logo"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
             android:layout_gravity="center"
-            android:src="@drawable/ic_mic_white"
+            android:includeFontPadding="false"
+            android:letterSpacing="0.02"
+            android:text="A1"
+            android:textColor="@color/white"
+            android:textSize="21sp"
+            android:textStyle="bold"
             android:contentDescription="A1 음성"/>
+
+        <!-- 녹음 파일 저장 중: A1 대신 조용한 흰색 점 하나 (빨간색 없음) -->
+        <View
+            android:id="@+id/bubble_dot"
+            android:layout_width="9dp"
+            android:layout_height="9dp"
+            android:layout_gravity="center"
+            android:background="@drawable/bg_dot_white"
+            android:visibility="gone"/>
     </FrameLayout>
 
     <TextView
