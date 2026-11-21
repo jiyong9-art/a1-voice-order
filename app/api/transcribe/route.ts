@@ -90,6 +90,8 @@ export async function POST(request: Request) {
           reason: result.silenced,
           error: "말소리가 들리지 않았습니다. 다시 말씀해 주세요.",
           model: result.model,
+          // 환각 판정의 근거(토큰 확신도). 화면에는 쓰지 않고, 기준을 점검할 때만 본다.
+          confidence: result.confidence,
         });
       }
       return NextResponse.json(
