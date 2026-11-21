@@ -391,22 +391,47 @@ public class FileTranscribeActivity extends Activity {
             long size = sizeOf(uri, 0);
             durSec = AudioChunker.durationSec(this, uri);
             final long knownDur = durSec;
+            final long fileSize = size;
 
             ui.post(new Runnable() {
                 @Override
                 public void run() {
-                    tvMeta.setText(metaText(knownDur, -1));
+                    tvMeta.setText(metaText(knownDur, -1) + (fileSize > 0 ? " · " + History.sizeText(fileSize) : ""));
                 }
             });
             if (canceled) {
                 throw new JobError("취소되었습니다.");
             }
 
-            String text;
+            // 20MB 이하이면서 15분 이하면 그대로 한 번에 보낸다.
             boolean direct = size <= DIRECT_MAX_BYTES
                     && (durSec <= 0 || durSec <= AudioChunker.CHUNK_SECONDS);
-            if (direct) {
-                setState("소리를 글로 바꾸는 중…", -1);
+            List<File> chunks = null;
+            if (!direct) {
+                setState("15분 단위로 나누는 중…", 0);
+                try {
+                    chunks = AudioChunker.split(this, uri, jobDir, (int) durSec,
+                            new AudioChunker.Listener() {
+                                @Override
+                                public void onSplitProgress(final int percent) {
+                                    setState("15분 단위로 나누는 중…", percent);
+                                }
+                            });
+                } catch (Exception splitError) {
+                    // 나누기가 안 되면(디코더가 없는 형식 등) 서버 한도(24MB) 안일 때만 원본으로 한 번 시도한다.
+                    if (size > 24L * 1024 * 1024) {
+                        throw splitError;
+                    }
+                    chunks = null;
+                }
+                if (canceled) {
+                    throw new JobError("취소되었습니다.");
+                }
+            }
+
+            String text;
+            if (chunks == null) {
+                setState(direct ? "소리를 글로 바꾸는 중…" : "한 번에 변환하는 중…", -1);
                 File tmp = new File(jobDir, "whole" + extOf(name, mimeOf(uri)));
                 copyToFile(uri, tmp);
                 uiFinalMeta(durSec, tmp.length());
@@ -421,17 +446,6 @@ public class FileTranscribeActivity extends Activity {
                 text = out.text.trim();
                 parts = 1;
             } else {
-                setState("15분 단위로 나누는 중…", 0);
-                List<File> chunks = AudioChunker.split(this, uri, jobDir, (int) durSec,
-                        new AudioChunker.Listener() {
-                            @Override
-                            public void onSplitProgress(final int percent) {
-                                setState("15분 단위로 나누는 중…", percent);
-                            }
-                        });
-                if (canceled) {
-                    throw new JobError("취소되었습니다.");
-                }
                 parts = chunks.size();
                 final int total = parts;
                 final long d = durSec;
