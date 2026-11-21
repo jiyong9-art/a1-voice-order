@@ -51,6 +51,17 @@ export function vocabularyPrompt(): string {
   return extra ? `${DEFAULT_VOCABULARY}, ${extra}` : DEFAULT_VOCABULARY;
 }
 
+/**
+ * 프롬프트 에코(빈칸 환각) 판별에 쓰는 고유명사 목록 (v1.8).
+ * 변환 결과가 이 목록만으로 이루어져 있으면 '말한 내용'이 아니라 힌트를 읽은 것으로 본다.
+ */
+export function vocabularyHints(): string[] {
+  return vocabularyPrompt()
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
+
 export const DEFAULT_TEAM_MEMBERS = [
   "문지용",
   "이광훈",

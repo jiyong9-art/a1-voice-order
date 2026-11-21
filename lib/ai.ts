@@ -1,5 +1,6 @@
 import OpenAI from "openai";
-import { appConfig, defaultTeamMembers, isSet, vocabularyPrompt } from "@/lib/env";
+import { appConfig, defaultTeamMembers, isSet, vocabularyHints, vocabularyPrompt } from "@/lib/env";
+import { looksLikePromptEcho } from "@/lib/audio-guard";
 import type { CallSummaryResult, OrderResult, Priority } from "@/lib/types";
 import { PRIORITIES, todayInSeoul } from "@/lib/types";
 
@@ -56,10 +57,30 @@ export function normalizeAudioFile(file: File): { file: File; ext: string } {
   return { file: new File([file], name, { type: file.type || "application/octet-stream" }), ext };
 }
 
+export type TranscriptionResult = {
+  text: string;
+  model: string;
+  mocked?: boolean;
+  /** 말소리가 아니라 고유명사 힌트를 읽은 것으로 판단해 비운 경우 (v1.8) */
+  silenced?: "prompt_echo";
+};
+
+/**
+ * 모델이 돌려준 글에서 '빈칸 환각'(프롬프트를 그대로 읽은 문장)을 걸러낸다 (v1.8).
+ * 예: 무음 파일 → "에이원코리아입니다" / "유병헌 과장님".
+ */
+function finalizeText(text: string, model: string): TranscriptionResult {
+  const trimmed = (text ?? "").trim();
+  if (trimmed && looksLikePromptEcho(trimmed, vocabularyHints())) {
+    return { text: "", model, silenced: "prompt_echo" };
+  }
+  return { text: trimmed, model };
+}
+
 export async function transcribeAudio(
   file: File,
   opts: { mode: "order" | "call_summary" | "sales" },
-): Promise<{ text: string; model: string; mocked?: boolean }> {
+): Promise<TranscriptionResult> {
   const { file: normalized } = normalizeAudioFile(file);
 
   if (mockAiEnabled()) {
@@ -76,7 +97,8 @@ export async function transcribeAudio(
   }
 
   const c = appConfig();
-  const prompt = `회사 고유명사: ${vocabularyPrompt()}. 한국어 업무 대화이며, 고유명사 표기를 위 목록에 맞춰 주세요.`;
+  // v1.8: 문장 대신 짧은 고유명사 목록만 힌트로 준다. 문장형 힌트는 무음에서 그대로 읽히기 쉽다.
+  const prompt = vocabularyPrompt();
 
   const attempt = async (model: string) => {
     const params: Record<string, unknown> = {
@@ -95,13 +117,13 @@ export async function transcribeAudio(
 
   try {
     const text = await attempt(c.transcribeModel);
-    return { text: text.trim(), model: c.transcribeModel };
+    return finalizeText(text, c.transcribeModel);
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     // 모델 접근 권한이 없거나 이름이 바뀐 경우 whisper-1로 한 번 더 시도합니다.
     if (c.transcribeModel !== "whisper-1" && /model|not found|does not exist|invalid|unsupported/i.test(message)) {
       const text = await attempt("whisper-1");
-      return { text: text.trim(), model: "whisper-1" };
+      return finalizeText(text, "whisper-1");
     }
     throw err;
   }

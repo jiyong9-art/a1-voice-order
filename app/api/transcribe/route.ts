@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
+import { analyzeAudio, silenceReason } from "@/lib/audio-guard";
 import { aiConfigured, mockAiEnabled, transcribeAudio } from "@/lib/ai";
 import { clientIp, rateLimit } from "@/lib/rate-limit";
 
@@ -45,16 +46,49 @@ export async function POST(request: Request) {
   if (audio.size > MAX_BYTES) {
     return NextResponse.json(
       {
-        ok: false,
         error: `파일이 너무 큽니다 (${(audio.size / 1024 / 1024).toFixed(1)}MB). 25MB 이하로 나눠 올려 주세요.`,
+        ok: false,
       },
       { status: 413 },
     );
   }
 
+  // v1.8 무음·초단시간 게이트: 말소리가 없으면 모델을 부르지 않는다.
+  // (Whisper 계열이 조용한 파일에서 고유명사 힌트를 그대로 읽어 내는 '빈칸 환각' 방지)
+  try {
+    const bytes = new Uint8Array(await audio.arrayBuffer());
+    const profile = analyzeAudio(bytes);
+    const reason = silenceReason(profile);
+    if (reason) {
+      return NextResponse.json({
+        ok: true,
+        text: "",
+        silent: true,
+        reason,
+        model: "silence-gate",
+        audio: {
+          durationSec: profile.durationSec,
+          rmsDb: Number.isFinite(profile.rmsDb) ? profile.rmsDb : null,
+          speechSeconds: profile.speechSeconds,
+        },
+      });
+    }
+  } catch {
+    // 게이트를 재지 못해도 변환은 그대로 진행한다(기존 동작 유지).
+  }
+
   try {
     const result = await transcribeAudio(audio, { mode });
     if (!result.text) {
+      if (result.silenced === "prompt_echo") {
+        return NextResponse.json({
+          ok: true,
+          text: "",
+          silent: true,
+          reason: "prompt_echo",
+          model: result.model,
+        });
+      }
       return NextResponse.json(
         { ok: false, error: "음성을 인식하지 못했습니다. 다시 말씀해 주세요." },
         { status: 422 },
