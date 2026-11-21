@@ -1,0 +1,12 @@
+# 빌드 산출물 (APK · dex · 컴파일된 리소스 · 생성된 R.java)
+build/
+
+# 서명 키 — 절대 커밋하지 않는다 (분실 시 같은 앱으로 업데이트 설치 불가)
+keystore/
+*.jks
+*.keystore
+
+# 서명된 패키지
+*.apk
+*.aab
+*.idsig

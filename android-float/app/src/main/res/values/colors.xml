@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="brand_navy">#14365D</color>
+    <color name="brand_blue">#2F6FB2</color>
+    <color name="brand_sky">#4F9BE0</color>
+    <color name="bg">#F2F6FB</color>
+    <color name="card">#FFFFFF</color>
+    <color name="text_primary">#15263B</color>
+    <color name="text_secondary">#6B7A8C</color>
+    <color name="line">#DCE5EF</color>
+    <color name="rec_red">#E1483F</color>
+    <color name="white">#FFFFFF</color>
+</resources>
