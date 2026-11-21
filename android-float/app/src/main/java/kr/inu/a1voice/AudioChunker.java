@@ -18,13 +18,19 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * 긴 녹음 파일을 **15분 단위** 조각으로 나눈다 (v1.3).
+ * 긴 녹음 파일을 **15분 단위** 조각으로 나눈다 (v1.4).
  *
  * 폰에 있는 통화 녹음·회의 녹음은 30분~2시간짜리가 많아 한 번에 올리면 크기 제한에 걸린다.
- * 그래서 어떤 형식이든( m4a·mp3·wav·ogg·aac·flac·amr ) 안드로이드 기본 디코더로 소리를 풀어
- * **16kHz 모노 AAC(m4a)** 로 다시 담으면서 15분마다 파일을 끊는다. 조각은 순서대로 변환되어
- * 하나의 글로 이어 붙는다.
+ * 그래서 두 길로 나눈다.
  *
+ * 1) **빠른 길(무손실)** — m4a·aac·mp4·3gp 처럼 MP4 컨테이너에 그대로 담을 수 있는
+ *    (AAC·AMR) 트랙은 `MediaExtractor` → `MediaMuxer` 로 샘플만 **복사**한다. 소리를
+ *    풀었다가 다시 압축하지 않으므로 1시간 녹음도 1~2초에 끝나고 음질도 원본 그대로다.
+ *    조각 경계는 15분 또는 18MB 중 먼저 닿는 쪽.
+ * 2) **다시 담는 길(폴백)** — 복사를 거부하는 형식(mp3·wav·ogg·flac·amr 등)은 안드로이드
+ *    기본 디코더로 소리를 풀어 **16kHz 모노 AAC(m4a)** 로 다시 담으면서 15분마다 끊는다.
+ *
+ * 조각은 순서대로 변환되어 하나의 글로 이어 붙는다.
  * 외부 라이브러리 없이 MediaExtractor + MediaCodec + MediaMuxer 만 쓴다.
  */
 public final class AudioChunker {
@@ -32,6 +38,10 @@ public final class AudioChunker {
     public static final int CHUNK_SECONDS = 15 * 60;
     private static final int OUT_RATE = 16000;
     private static final int OUT_BITRATE = 64000;
+    /** 빠른 길에서 조각 하나의 크기 상한(18MB) — 서버 한도 24MB 아래로 넉넉히 둔다. */
+    private static final long FAST_CHUNK_MAX_BYTES = 18L * 1024 * 1024;
+    /** 이보다 큰 조각이 나오면 빠른 길을 포기하고 다시 담는 길로 넘긴다. */
+    private static final long FAST_PART_HARD_MAX_BYTES = 22L * 1024 * 1024;
 
     public interface Listener {
         /** 나누는 진행률 0~100 (-1 이면 알 수 없음). */
@@ -90,10 +100,211 @@ public final class AudioChunker {
     /**
      * 파일을 15분 단위 m4a 조각으로 나눠 outDir 안에 만든다.
      *
+     * 먼저 원본 그대로 복사하는 빠른 길을 시도하고, 그 길을 쓸 수 없으면 다시 담는 길로 간다.
+     *
      * @return 만들어진 조각 파일 목록 (순서대로). 하나도 못 만들면 빈 목록.
      */
     public static List<File> split(Context ctx, Uri uri, File outDir, int knownDurationSec,
                                    Listener listener) throws Exception {
+        if (outDir == null) {
+            throw new Exception("임시 폴더를 만들지 못했습니다.");
+        }
+        if (!outDir.exists() && !outDir.mkdirs()) {
+            throw new Exception("임시 폴더를 만들지 못했습니다.");
+        }
+        List<File> fast = tryFastCopy(ctx, uri, outDir, listener);
+        if (fast != null && !fast.isEmpty()) {
+            return fast;
+        }
+        return splitByReencode(ctx, uri, outDir, knownDurationSec, listener);
+    }
+
+    /* ------------------------------------------------------------------ */
+    /* 1) 빠른 길 — 원본 샘플 그대로 복사 (무손실)                          */
+    /* ------------------------------------------------------------------ */
+
+    /**
+     * MediaExtractor 로 원본 샘플을 읽어 MediaMuxer 에 그대로 써 넣는다. 디코딩·인코딩이 없다.
+     *
+     * @return 조각 목록. 이 길을 쓸 수 없으면(코덱·컨테이너가 다르거나 복사가 거부되면) null.
+     */
+    private static List<File> tryFastCopy(Context ctx, Uri uri, File outDir, Listener listener) {
+        List<File> parts = new ArrayList<File>();
+        MediaExtractor ex = new MediaExtractor();
+        MediaMuxer muxer = null;
+        File cur = null;
+        boolean started = false;
+        ParcelFileDescriptor pfd = null;
+        try {
+            pfd = ctx.getContentResolver().openFileDescriptor(uri, "r");
+            if (pfd == null) {
+                return null;
+            }
+            ex.setDataSource(pfd.getFileDescriptor());
+
+            int track = -1;
+            MediaFormat fmt = null;
+            for (int i = 0; i < ex.getTrackCount(); i++) {
+                MediaFormat f = ex.getTrackFormat(i);
+                String m = f.getString(MediaFormat.KEY_MIME);
+                if (m != null && m.startsWith("audio/")) {
+                    track = i;
+                    fmt = f;
+                    break;
+                }
+            }
+            if (track < 0 || fmt == null) {
+                return null;
+            }
+            String mime = fmt.getString(MediaFormat.KEY_MIME);
+            // MP4 컨테이너가 그대로 받아 주는 오디오 코덱만 복사한다(AAC·AMR).
+            boolean copyable = "audio/mp4a-latm".equals(mime)
+                    || "audio/3gpp".equals(mime)
+                    || "audio/amr-wb".equals(mime);
+            if (!copyable) {
+                return null;
+            }
+
+            long totalUs = fmt.containsKey(MediaFormat.KEY_DURATION)
+                    ? fmt.getLong(MediaFormat.KEY_DURATION) : 0L;
+            ex.selectTrack(track);
+
+            ByteBuffer buf = ByteBuffer.allocateDirect(512 * 1024);
+            MediaCodec.BufferInfo info = new MediaCodec.BufferInfo();
+            long partStartUs = 0L;
+            long partBytes = 0L;
+            long lastPts = 0L;
+            int index = 0;
+
+            while (true) {
+                buf.clear();
+                int size = ex.readSampleData(buf, 0);
+                if (size < 0) {
+                    break;
+                }
+                long pts = ex.getSampleTime();
+                if (pts < 0) {
+                    pts = 0;
+                }
+                if (muxer == null || needsNewPart(pts, partStartUs, partBytes, size)) {
+                    if (muxer != null) {
+                        closePart(muxer, started, cur, parts);
+                        muxer = null;
+                        cur = null;
+                        started = false;
+                    }
+                    index++;
+                    cur = new File(outDir, String.format("part_%02d.m4a", index));
+                    muxer = new MediaMuxer(cur.getAbsolutePath(),
+                            MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4);
+                    muxer.addTrack(fmt);
+                    muxer.start();
+                    started = true;
+                    partStartUs = pts;
+                    partBytes = 0L;
+                }
+                buf.position(0);
+                info.set(0, size, pts - partStartUs, ex.getSampleFlags());
+                muxer.writeSampleData(0, buf, info);
+                partBytes += size;
+                lastPts = pts;
+                ex.advance();
+                if (listener != null && totalUs > 0) {
+                    int pct = (int) (pts * 100 / totalUs);
+                    listener.onSplitProgress(Math.max(0, Math.min(99, pct)));
+                }
+            }
+
+            if (muxer != null) {
+                closePart(muxer, started, cur, parts);
+                muxer = null;
+                cur = null;
+            }
+            if (parts.isEmpty()) {
+                return null;
+            }
+            // 끝까지 읽지 못하고 앞부분만 복사된 경우도 다시 담는 길로 넘긴다.
+            if (totalUs > 0 && lastPts * 10 < totalUs * 9) {
+                for (File p : parts) {
+                    p.delete();
+                }
+                return null;
+            }
+            // 조각이 서버 한도에 너무 가까우면 이 길을 포기하고 다시 담는 길로 넘긴다.
+            for (File f : parts) {
+                if (f.length() > FAST_PART_HARD_MAX_BYTES) {
+                    for (File p : parts) {
+                        p.delete();
+                    }
+                    return null;
+                }
+            }
+            return parts;
+        } catch (Throwable t) {
+            // 복사를 거부하는 형식·코덱 → 아래(다시 담는 길)로 넘긴다.
+            for (File p : parts) {
+                if (p != null) {
+                    p.delete();
+                }
+            }
+            if (cur != null) {
+                cur.delete();
+            }
+            return null;
+        } finally {
+            if (muxer != null) {
+                try {
+                    muxer.release();
+                } catch (Exception ignored) {
+                }
+            }
+            try {
+                ex.release();
+            } catch (Exception ignored) {
+            }
+            try {
+                if (pfd != null) {
+                    pfd.close();
+                }
+            } catch (Exception ignored) {
+            }
+        }
+    }
+
+    /**
+     * 새 조각을 시작해야 하는가 — 15분을 넘었거나, 다음 샘플까지 넣으면 18MB를 넘길 때 (v1.4).
+     * 빠른 길(복사)의 조각 경계 규칙이다.
+     */
+    static boolean needsNewPart(long pts, long partStartUs, long partBytes, int sampleSize) {
+        return (pts - partStartUs) >= (long) CHUNK_SECONDS * 1000000L
+                || partBytes + sampleSize > FAST_CHUNK_MAX_BYTES;
+    }
+
+    /** 한 조각을 닫아 목록에 넣는다(쓸 만한 크기일 때만). */
+    private static void closePart(MediaMuxer muxer, boolean started, File file, List<File> parts) {
+        try {
+            if (started) {
+                muxer.stop();
+            }
+        } catch (Exception ignored) {
+        }
+        try {
+            muxer.release();
+        } catch (Exception ignored) {
+        }
+        if (file != null && file.exists() && file.length() > 1024) {
+            parts.add(file);
+        } else if (file != null) {
+            file.delete();
+        }
+    }
+
+    /* ------------------------------------------------------------------ */
+    /* 2) 다시 담는 길 — 디코딩 → 16kHz 모노 → AAC 인코딩                   */
+    /* ------------------------------------------------------------------ */
+
+    private static List<File> splitByReencode(Context ctx, Uri uri, File outDir, int knownDurationSec,
+                                              Listener listener) throws Exception {
         if (outDir == null) {
             throw new Exception("임시 폴더를 만들지 못했습니다.");
         }

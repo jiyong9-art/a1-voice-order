@@ -31,10 +31,13 @@ import java.util.List;
 import java.util.Locale;
 
 /**
- * 폰에 있는 녹음 파일을 열어 글로 바꾸는 화면 (v1.3).
+ * 폰에 있는 녹음 파일을 열어 글로 바꾸는 화면 (v1.4).
  *
  * - 파일(.m4a .mp3 .wav .ogg .aac .flac .amr) 또는 폴더를 골라 연다.
  * - 15분 이하·20MB 이하이면 그대로 변환하고, 넘으면 15분 단위로 자동 분할해 순서대로 변환한다.
+ *   (m4a·aac·mp4 는 원본 복사로 즉시 분할 — AudioChunker 참고)
+ * - **조각이 끝날 때마다 글자를 바로 본문에 이어 붙인다**(옅은 글씨 = 저장 중, 진한 글씨 = 확정).
+ * - 도중에 끊기면 그때까지 받은 앞부분을 **`[부분 저장]`** 으로 기기 기록에 남긴다.
  * - 결과는 서버에 남기지 않고 **이 기기 기록**(History)에만 저장한다.
  */
 public class FileTranscribeActivity extends Activity {
@@ -47,12 +50,17 @@ public class FileTranscribeActivity extends Activity {
     private static final int REQ_PICK_FOLDER = 42;
     /** 이 크기 이하면 나누지 않고 한 번에 보낸다. */
     private static final long DIRECT_MAX_BYTES = 20L * 1024 * 1024;
+    /** 변환되는 중에 보여 주는 옅은 글씨색 (#64748B). */
+    private static final int COLOR_LIVE = 0xFF64748B;
+    /** 다 변환된 뒤 확정 글씨색 (#0F172A). */
+    private static final int COLOR_FINAL = 0xFF0F172A;
 
     private TextView tvFile;
     private TextView tvMeta;
     private TextView tvState;
     private ProgressBar pb;
     private View cardResult;
+    private TextView tvResultTitle;
     private EditText etResult;
     private TextView tvSaved;
     private TextView btnCopy;
@@ -76,6 +84,7 @@ public class FileTranscribeActivity extends Activity {
         tvState = (TextView) findViewById(R.id.tv_state);
         pb = (ProgressBar) findViewById(R.id.pb);
         cardResult = findViewById(R.id.card_result);
+        tvResultTitle = (TextView) findViewById(R.id.tv_result_title);
         etResult = (EditText) findViewById(R.id.et_result);
         tvSaved = (TextView) findViewById(R.id.tv_saved);
         btnCopy = (TextView) findViewById(R.id.btn_copy);
@@ -362,8 +371,12 @@ public class FileTranscribeActivity extends Activity {
         }
         jobRunning = true;
         canceled = false;
-        cardResult.setVisibility(View.GONE);
+        // 변환되는 동안에도 본문이 보이도록 결과 상자를 처음부터 연다 (v1.4).
+        cardResult.setVisibility(View.VISIBLE);
+        tvResultTitle.setText("변환 중…");
         etResult.setText("");
+        etResult.setTextColor(COLOR_LIVE);
+        tvSaved.setText("저장 중…");
         tvFile.setText(name);
         tvMeta.setText("");
         btnAgain.setBackgroundResource(R.drawable.bg_btn_off);
@@ -384,12 +397,17 @@ public class FileTranscribeActivity extends Activity {
         File jobDir = new File(getCacheDir(), "job_" + System.currentTimeMillis());
         long durSec = 0;
         int parts = 1;
+        // 조각이 끝날 때마다 여기에 이어 붙인다. 중간에 끊겨도 앞부분을 잃지 않는다 (v1.4).
+        final StringBuilder collected = new StringBuilder();
+        final int[] doneParts = new int[]{0};
+        final int[] durBox = new int[]{0};
         try {
             if (!jobDir.exists() && !jobDir.mkdirs()) {
                 throw new JobError("임시 폴더를 만들지 못했어요. 저장 공간을 확인해 주세요.");
             }
             long size = sizeOf(uri, 0);
             durSec = AudioChunker.durationSec(this, uri);
+            durBox[0] = (int) durSec;
             final long knownDur = durSec;
             final long fileSize = size;
 
@@ -429,7 +447,6 @@ public class FileTranscribeActivity extends Activity {
                 }
             }
 
-            String text;
             if (chunks == null) {
                 setState(direct ? "소리를 글로 바꾸는 중…" : "한 번에 변환하는 중…", -1);
                 File tmp = new File(jobDir, "whole" + extOf(name, mimeOf(uri)));
@@ -443,7 +460,12 @@ public class FileTranscribeActivity extends Activity {
                 if (!out.ok) {
                     throw new JobError(out.error);
                 }
-                text = out.text.trim();
+                String one = out.text.trim();
+                if (!one.isEmpty()) {
+                    collected.append(one);
+                    doneParts[0] = 1;
+                    showLive(one, 1, 1);
+                }
                 parts = 1;
             } else {
                 parts = chunks.size();
@@ -457,7 +479,6 @@ public class FileTranscribeActivity extends Activity {
                         pb.setProgress(0);
                     }
                 });
-                StringBuilder sb = new StringBuilder();
                 for (int i = 0; i < total; i++) {
                     if (canceled) {
                         throw new JobError("취소되었습니다.");
@@ -470,21 +491,24 @@ public class FileTranscribeActivity extends Activity {
                     if (!out.ok) {
                         throw new JobError(idx + "/" + total + " 구간에서 멈췄어요: " + out.error);
                     }
-                    if (sb.length() > 0) {
-                        sb.append("\n");
+                    String chunkText = out.text.trim();
+                    if (collected.length() > 0 && !chunkText.isEmpty()) {
+                        collected.append("\n");
                     }
-                    sb.append(out.text.trim());
+                    collected.append(chunkText);
+                    doneParts[0] = idx;
+                    // 받은 조각을 바로 본문에 붙여 보여 준다.
+                    showLive(collected.toString(), idx, total);
                 }
-                text = sb.toString().trim();
             }
 
-            if (text.isEmpty()) {
+            final String finalText = collected.toString().trim();
+            if (finalText.isEmpty()) {
                 throw new JobError("음성을 인식하지 못했어요. 소리가 잘 들리는 파일인지 확인해 주세요.");
             }
-            final String finalText = text;
             final long finalDur = durSec;
             final int finalParts = parts;
-            History.add(this, name, History.SRC_FILE, (int) durSec, parts, text);
+            History.add(this, name, History.SRC_FILE, (int) durSec, parts, finalText);
 
             ui.post(new Runnable() {
                 @Override
@@ -495,14 +519,63 @@ public class FileTranscribeActivity extends Activity {
                     pb.setVisibility(View.GONE);
                     setState("변환 완료 · " + finalText.length() + "자 · 이 기기에 저장했어요", -1);
                     tvMeta.setText(metaText(finalDur, finalParts));
-                    etResult.setText(finalText);
                     cardResult.setVisibility(View.VISIBLE);
+                    tvResultTitle.setText("변환 결과");
+                    // 다 끝났으면 진한 글씨로 확정.
+                    etResult.setTextColor(COLOR_FINAL);
+                    etResult.setText(finalText);
                     tvSaved.setText("이 기기에만 저장됨 · " + History.dateText(System.currentTimeMillis()));
                     btnAgain.setBackgroundResource(R.drawable.bg_btn_primary);
                 }
             });
         } catch (JobError e) {
-            final String msg = e.getMessage();
+            partialSaveOrError(name, collected.toString(), doneParts[0], durBox[0], e.getMessage());
+        } catch (Exception e) {
+            String m = e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage();
+            partialSaveOrError(name, collected.toString(), doneParts[0], durBox[0],
+                    "변환하지 못했어요: " + m);
+        } finally {
+            AudioChunker.deleteDir(jobDir);
+        }
+    }
+
+    /**
+     * 받은 조각을 본문에 바로 이어 붙인다 (v1.4). 옅은 글씨 = 아직 저장 중.
+     *
+     * @param full  지금까지 변환된 글 전체
+     * @param done  끝난 구간 수
+     * @param total 전체 구간 수
+     */
+    private void showLive(final String full, final int done, final int total) {
+        ui.post(new Runnable() {
+            @Override
+            public void run() {
+                cardResult.setVisibility(View.VISIBLE);
+                tvResultTitle.setText(total > 1 ? "변환 중… (" + done + "/" + total + ")" : "변환 중…");
+                etResult.setTextColor(COLOR_LIVE);
+                etResult.setText(full);
+                try {
+                    etResult.setSelection(full.length());
+                } catch (Exception ignored) {
+                }
+                pb.setIndeterminate(false);
+                pb.setVisibility(View.VISIBLE);
+                pb.setProgress(total > 0 ? (int) ((long) done * 100 / total) : 0);
+                tvState.setTextColor(android.graphics.Color.parseColor("#2F6FB2"));
+                tvState.setText("저장 중… (" + done + "/" + total + " 구간 완료)");
+                tvSaved.setText("저장 중… " + done + "/" + total);
+            }
+        });
+    }
+
+    /**
+     * 도중에 멈췄을 때 — 이미 변환된 앞부분이 있으면 기기 기록에 **[부분 저장]** 으로 남기고
+     * 화면에도 옅은 글씨로 그대로 보여 준다. 받은 게 없으면 지금처럼 오류만 알린다.
+     */
+    private void partialSaveOrError(final String name, final String partial, final int done,
+                                    final int durSec, final String msg) {
+        final String kept = partial == null ? "" : partial.trim();
+        if (kept.isEmpty()) {
             ui.post(new Runnable() {
                 @Override
                 public void run() {
@@ -510,18 +583,28 @@ public class FileTranscribeActivity extends Activity {
                     showError(msg);
                 }
             });
-        } catch (Exception e) {
-            final String msg = e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage();
-            ui.post(new Runnable() {
-                @Override
-                public void run() {
-                    jobRunning = false;
-                    showError("변환하지 못했어요: " + msg);
-                }
-            });
-        } finally {
-            AudioChunker.deleteDir(jobDir);
+            return;
         }
+        History.add(this, name + " [부분 저장]", History.SRC_FILE, durSec, Math.max(1, done), kept);
+        ui.post(new Runnable() {
+            @Override
+            public void run() {
+                jobRunning = false;
+                pb.setIndeterminate(false);
+                pb.setVisibility(View.GONE);
+                cardResult.setVisibility(View.VISIBLE);
+                tvResultTitle.setText("부분 저장 (" + done + "구간까지)");
+                etResult.setTextColor(COLOR_LIVE);
+                etResult.setText(kept);
+                tvState.setTextColor(android.graphics.Color.parseColor("#C62828"));
+                tvState.setText((msg == null ? "중간에 멈췄어요." : msg)
+                        + " · 앞에서 변환된 " + done + "구간은 [부분 저장]했어요");
+                tvSaved.setText("부분 저장 · " + History.dateText(System.currentTimeMillis()));
+                btnAgain.setBackgroundResource(R.drawable.bg_btn_primary);
+                Toast.makeText(FileTranscribeActivity.this,
+                        "끝까지는 못 했지만 앞부분은 [부분 저장]했어요", Toast.LENGTH_LONG).show();
+            }
+        });
     }
 
     private void uiFinalMeta(final long durSec, final long bytes) {

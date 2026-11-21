@@ -16,14 +16,14 @@ import java.net.URL;
 import java.nio.charset.StandardCharsets;
 
 /**
- * 새 버전 확인 (v1.3).
+ * 새 버전 확인 (v1.3부터, v1.4도 같은 방식).
  *
  * 앱을 열 때 한 번, 서버(`https://a1kr.com/app/version.json`)에 지금 깔린 버전보다
  * 높은 versionCode 가 있는지 조용히 물어본다. 있으면 화면에
- * "New version v1.3 available" / [Update] 를 띄우고, 누르면 "Updating..." 과 함께
+ * "New version vX available" / [Update] 를 띄우고, 누르면 "Updating..." 과 함께
  * 새 APK 주소를 브라우저로 연다.
  *
- * 서버 형식: {"versionCode":4,"versionName":"1.3","url":"https://a1kr.com/app/a1-voice.apk"}
+ * 서버 형식: {"versionCode":5,"versionName":"1.4","url":"https://a1kr.com/app/a1-voice.apk"}
  */
 public final class UpdateChecker {
 

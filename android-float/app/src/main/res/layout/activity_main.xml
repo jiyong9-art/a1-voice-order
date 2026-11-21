@@ -550,7 +550,7 @@
             android:layout_marginTop="14dp"
             android:gravity="center"
             android:padding="6dp"
-            android:text="A1 음성 v1.3"
+            android:text="A1 음성 v1.4"
             android:textColor="@color/text_secondary"
             android:textSize="10sp"/>
     </LinearLayout>

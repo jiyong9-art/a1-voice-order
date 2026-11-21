@@ -39,7 +39,7 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="3dp"
-                    android:text="폰에 있는 통화·회의 녹음을 열면 글로 바꿔요. 15분이 넘으면 자동으로 나눠서 변환합니다."
+                    android:text="폰에 있는 통화·회의 녹음을 열면 글로 바꿔요. 긴 녹음은 원본 그대로 빠르게 나눠 변환하고, 변환되는 대로 글이 바로 표시됩니다."
                     android:textColor="@color/text_secondary"
                     android:textSize="11sp"
                     android:lineSpacingExtra="2dp"/>
@@ -118,6 +118,7 @@
                 android:gravity="center_vertical">
 
                 <TextView
+                    android:id="@+id/tv_result_title"
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_weight="1"

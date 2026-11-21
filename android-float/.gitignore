@@ -10,3 +10,6 @@ keystore/
 *.apk
 *.aab
 *.idsig
+
+# JVM 시험 컴파일 결과
+test/out/

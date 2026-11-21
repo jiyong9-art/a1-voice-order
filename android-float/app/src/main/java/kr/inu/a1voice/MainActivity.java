@@ -557,7 +557,7 @@ public class MainActivity extends Activity {
         });
     }
 
-    /** "New version v1.3 available" → [Update] 누르면 "Updating..." 으로 바뀌고 새 APK 로 넘어간다. */
+    /** "New version vX available" → [Update] 누르면 "Updating..." 으로 바뀌고 새 APK 로 넘어간다. */
     private void showUpdateDialog(String versionName, final String apkUrl) {
         if (isFinishing()) {
             return;

@@ -3,10 +3,10 @@
 카톡·문자·네이트온 어디서든 **화면 위 A1 동그라미**를 두 번 톡톡 누르면 녹음이 시작되고,
 말이 끝나면 `a1-voice-order` 의 Whisper(`gpt-4o-transcribe`)로 변환해 **입력칸에 바로 넣어주는**(또는 자동 복사하는) 안드로이드 앱.
 
-- 패키지: `kr.inu.a1voice` · 이름: `A1 음성` · **versionName 1.3 (versionCode 4 · 2026-11-21 음성파일 15분분할·기기저장·자동 업데이트 안내)**
-- 이전 버전: v1.2(versionCode 3) — `archive/a1-voice-float-v1.2.apk`, v1.0 — `archive/a1-voice-float-v1.0.apk`
+- 패키지: `kr.inu.a1voice` · 이름: `A1 음성` · **versionName 1.4 (versionCode 5 · 2026-11-21 녹음 원본 그대로 고속 분할·실시간 글자 표시·부분 저장)**
+- 이전 버전: v1.3(versionCode 4) — `archive/a1-voice-float-v1.3.apk`, v1.2(versionCode 3) — `archive/a1-voice-float-v1.2.apk`, v1.0 — `archive/a1-voice-float-v1.0.apk`
 - minSdk 26 (Android 8) / targetSdk 34
-- 외부 라이브러리 0개 (Android 프레임워크만 사용) → APK 약 163KB
+- 외부 라이브러리 0개 (Android 프레임워크만 사용) → APK 약 159KB
 - 배포: `https://a1kr.com/app/a1-voice.apk`
 
 ## 기능
@@ -24,9 +24,12 @@
 | 실패 | 팝업에 오류 사유 + `다시 시도` (녹음 파일 유지) |
 | 백그라운드 | 포그라운드 서비스(`foregroundServiceType=microphone`) + 상시 알림 |
 | **음성 파일 변환 (v1.3)** | 첫 화면의 **`음성 파일 변환 (녹음 열기)`** → `[녹음 파일 열기]`(파일 선택) 또는 `[폴더 열기]`(폴더 안 음성파일 목록). `.m4a .mp3 .wav .ogg .aac .flac .amr` 지원 |
-| **15분 자동 분할 (v1.3)** | 15분 초과 또는 20MB 초과 파일은 `MediaExtractor`+`MediaCodec`+`MediaMuxer` 로 16kHz 모노 m4a 조각을 15분마다 만들어 순서대로 변환. 진행률 `1/3 구간 변환 중…` |
+| **15분 자동 분할 (v1.3)** | 15분 초과 또는 20MB 초과 파일은 `MediaExtractor`+`MediaCodec`+`MediaMuxer` 로 16kHz 모노 m4a 조각을 15분마다 만들어 순서대로 변환 |
+| **고속 무손실 분할 (v1.4)** | m4a·aac·mp4·3gp 의 AAC/AMR 트랙은 **디코딩·재인코딩 없이 샘플만 복사**해 15분(또는 18MB)마다 즉시 분할. 1시간 녹음도 1~2초대. 복사가 안 되는 형식·코덱은 v1.3의 재인코딩 경로로 자동 폴백 |
+| **실시간 글자 표시 (v1.4)** | 조각 하나가 끝날 때마다 결과 본문에 바로 이어 붙임. 진행 중엔 옅은 글씨(`#64748B`) + 배지 `저장 중… (1/3 구간 완료)`, 완료 시 진한 글씨(`#0F172A`)로 확정 |
+| **부분 저장 (v1.4)** | 중간에 오류·취소로 끊겨도 그때까지 변환된 앞부분을 기기 기록에 `파일명 [부분 저장]`으로 남기고 화면에도 옅은 글씨로 표시 |
 | **기기 저장 기록 (v1.3)** | 변환한 글·파일명·길이·시각을 **이 폰 안에만**(`filesDir/transcripts.json`) 저장. `기록 보기`에서 열어 확인·전체 복사·삭제. 서버로는 보내지 않음 |
-| **자동 업데이트 안내 (v1.3)** | 앱을 열면 3시간에 한 번 `https://a1kr.com/app/version.json` 확인 → 새 버전이면 `New version v1.3 available` + `[Update]` → 누르면 `Updating...` 과 함께 `https://a1kr.com/app/a1-voice.apk` 로 이동 |
+| **자동 업데이트 안내 (v1.3)** | 앱을 열면 3시간에 한 번 `https://a1kr.com/app/version.json` 확인 → 새 버전이면 `New version v1.4 available` + `[Update]` → 누르면 `Updating...` 과 함께 `https://a1kr.com/app/a1-voice.apk` 로 이동 |
 
 ### 접근성(입력칸 바로 넣기) 켜는 법
 
@@ -48,7 +51,7 @@ KS_PASS='<서명키 비밀번호>' sh build.sh   # aapt2 → javac → d8 → zi
 **이 키를 잃으면 같은 앱으로 업데이트 설치가 안 된다** — 보관할 것.
 배포는 `servers/a1-total-seoul/apk-put.py <apk>` → `/var/www/a1-dl/a1-voice.apk`.
 
-## 음성 파일 변환 · 기기 저장 · 업데이트 (v1.3)
+## 음성 파일 변환 · 기기 저장 · 업데이트 (v1.3 → v1.4)
 
 ### 1) 파일/폴더 열어 변환 (`FileTranscribeActivity`)
 - 첫 화면 `플로팅 켜기` 아래 **`음성 파일 변환 (녹음 열기)`** → `[녹음 파일 열기]` 또는 `[폴더 열기]`
@@ -56,10 +59,29 @@ KS_PASS='<서명키 비밀번호>' sh build.sh   # aapt2 → javac → d8 → zi
 - 지원: `.m4a .mp3 .wav .ogg .aac .flac .amr`(+`.mp4 .3gp .m4b .opus .wma` 시도)
 - **20MB 이하이고 15분 이하**면 원본을 그대로 `/api/transcribe` 로 보낸다(확장자를 유지해 임시 사본을 만든 뒤 업로드).
 
-### 2) 15분 자동 분할 (`AudioChunker`)
-15분 초과 또는 20MB 초과면 `MediaExtractor`(원본 트랙) → `MediaCodec` 디코더(PCM) → 모노 다운믹스 + 선형보간 16kHz → `MediaCodec` AAC 인코더 → `MediaMuxer` 로 **`part_01.m4a`, `part_02.m4a` … 15분 조각**을 만든다(64kbps → 15분 약 7MB).
-조각은 순서대로 변환한 뒤 `\n` 으로 이어 하나의 글로 만든다. 진행률은 `i/n 구간 변환 중…`, 나누는 동안은 `15분 단위로 나누는 중… 42%`.
-> 왜 재인코딩하나: mp3·wav·ogg·flac·amr 은 MP4 컨테이너로 그냥 잘라 담을 수 없어서, 어떤 형식이든 같은 파이프라인으로 통일했다(서버·Whisper 모두 m4a/AAC 16k 모노를 가장 잘 받는다).
+### 2) 15분 단위 분할 (`AudioChunker`)
+15분 초과 또는 20MB 초과면 두 길로 나눈다.
+
+**① 빠른 길 (v1.4, 무손실)** — m4a·aac·mp4·3gp 처럼 MP4 컨테이너에 그대로 담을 수 있는(AAC·AMR) 트랙은
+`MediaExtractor` 로 샘플을 읽어 `MediaMuxer` 에 **그대로 복사**한다. 소리를 풀었다가 다시 압축하지 않으므로
+**1시간 녹음도 1~2초대**이고 음질도 원본 그대로다. 조각 경계는 **15분 또는 18MB 중 먼저 닿는 쪽**
+(서버 한도 24MB 아래로 넉넉히).
+
+**② 다시 담는 길 (v1.3부터, 폴백)** — mp3·wav·ogg·flac·amr 처럼 MP4 로 그냥 담을 수 없는 형식은
+`MediaCodec` 디코더(PCM) → 모노 다운믹스 + 선형보간 16kHz → `MediaCodec` AAC 인코더 → `MediaMuxer` 로
+`part_01.m4a`, `part_02.m4a` … 15분 조각(64kbps → 15분 약 7MB)을 만든다.
+
+자동 폴백 조건: 코덱·컨테이너가 복사를 거부하거나, 조각이 22MB를 넘거나, 끝까지 읽지 못하고 앞부분만 복사된 경우.
+그 밖의 기존 안전장치도 그대로다 — 20MB 이하·15분 이하면 나누지 않고 한 번에 전송, 분할이 통째로 실패하면 24MB 이하일 때만 원본으로 1회 시도.
+조각은 순서대로 변환한 뒤 `\n` 으로 이어 하나의 글로 만들고, 진행률은 `i/n 구간 변환 중…`, 나누는 동안은 `15분 단위로 나누는 중… 42%`.
+
+> 조각 경계 규칙은 `test/BoundaryTest.java` 로 JVM에서 검증한다(14:59.9/15:00.0, 18MB 상한, 1시간=4조각, 320kbps 1시간=9조각·최대 17MB).
+
+### 2-1) 실시간 글자 표시 · 부분 저장 (v1.4)
+- 결과 상자는 변환이 시작될 때부터 열려 있고, 제목이 `변환 중… (1/3)` 처럼 바뀐다.
+- 조각 하나가 `/api/transcribe` 응답을 받으면 곧바로 본문에 이어 붙는다(`showLive`). 진행 중 본문은 옅은 글씨 `#64748B`, 배지 `저장 중… (1/3 구간 완료)`.
+- 전부 끝나면 제목 `변환 결과`, 본문은 진한 글씨 `#0F172A` 로 확정되고 그때 기기 기록에 저장된다.
+- 중간에 네트워크 오류·취소로 끊기면 그때까지의 글을 `파일명 [부분 저장]` 으로 `filesDir/transcripts.json` 에 남기고 화면에도 옅은 글씨로 보여 준다(`partialSaveOrError`).
 
 ### 3) 기기 저장 기록 (`History` · `HistoryActivity`)
 - 저장 위치: **앱 전용 `filesDir/transcripts.json`** (JSON 배열, 최근 300건). 서버·클라우드로 전송하지 않는다.
@@ -70,13 +92,13 @@ KS_PASS='<서명키 비밀번호>' sh build.sh   # aapt2 → javac → d8 → zi
 
 ### 4) 자동 업데이트 안내 (`UpdateChecker`)
 - `https://a1kr.com/app/version.json` 을 앱을 열 때 백그라운드로 확인(3시간에 한 번, 실패는 조용히 무시).
-- 서버 `versionCode` > 깔린 `versionCode` 면 **`New version v1.3 available`** + `[Update]` / `[Later]`.
+- 서버 `versionCode` > 깔린 `versionCode` 면 **`New version v1.4 available`** + `[Update]` / `[Later]`.
 - `[Update]` → 제목이 **`Updating...`** 으로 바뀌고 진행 막대와 함께 `version.json` 의 `url`(기본 `https://a1kr.com/app/a1-voice.apk`)을 브라우저로 연다. 사용자는 브라우저에서 받아 "설치"만 누르면 된다(같은 서명키라 덮어쓰기 업데이트).
-- 첫 화면 맨 아래 `A1 음성 v1.3 · 새 버전 확인` 을 누르면 즉시 확인하고, 최신이면 `Latest version v1.3` 토스트.
+- 첫 화면 맨 아래 `A1 음성 v1.4 · 새 버전 확인` 을 누르면 즉시 확인하고, 최신이면 `Latest version v1.4` 토스트.
 
 ```
 GET https://a1kr.com/app/version.json
-{"versionCode":4,"versionName":"1.3","url":"https://a1kr.com/app/a1-voice.apk"}
+{"versionCode":5,"versionName":"1.4","url":"https://a1kr.com/app/a1-voice.apk"}
 ```
 
 ## 서버 계약 (a1-voice-order)
@@ -103,6 +125,6 @@ POST {server}/api/transcribe      multipart/form-data, field "audio" (파일)
 - 이름 칸도 v1.2부터 빈칸이 기본이다. 저장된 값이 있을 때만 채워진다.
 - 로그인 게이트는 "이 기기에서 서버 로그인이 확인됐는가"를 본다. 쿠키가 만료돼 `/api/transcribe` 가 401을 주면 앱이 저장된 비밀번호로 자동 재로그인한다.
 - 접근성 서비스는 입력칸을 찾아 글자를 넣는 데만 쓴다. 화면의 다른 글자를 읽거나 저장·전송하지 않는다(이벤트도 포커스/창 전환만 받는다).
-- v1.3 파일 변환은 안드로이드 기본 디코더가 지원하는 형식만 된다. 디코더가 없는 형식(일부 DRM·특이 코덱)은 "이 형식의 소리를 풀지 못했습니다" 로 안내한다.
+- 파일 변환은 안드로이드 기본 디코더가 지원하는 형식만 된다(v1.4는 AAC/AMR 원본 복사, 그 외 재인코딩). 디코더가 없는 형식(일부 DRM·특이 코덱)은 "이 형식의 소리를 풀지 못했습니다" 로 안내한다.
 - 서버 `/api/transcribe` 는 Vercel 함수라 **요청당 120초** 제한, **시간당 40회** 제한이 있다. 아주 긴 녹음은 15분 조각 수만큼 요청이 나가므로, 2시간 넘는 파일은 10조각(요청 10회) 이상이 될 수 있다.
 - 변환 기록은 기기에만 있어서 앱 삭제·기기 변경 시 옮겨지지 않는다. 필요하면 결과 화면에서 `전체 복사` 로 밖에 빼 둘 것.
