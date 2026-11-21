@@ -136,6 +136,8 @@ public class OverlayService extends Service {
     private volatile boolean quitting;
     /** 변환 세대: 종료·새 녹음이 시작되면 올려서 이전 변환 결과를 버린다. */
     private int sessionGen;
+    /** 글자로 바꾸는 요청이 진행 중인지 — 그동안은 동그라미를 또렷하게(1.0) 보인다. */
+    private volatile boolean converting;
 
     /** 최근 탭 4개의 시각(4번 연타 판정) */
     private final TapRing tapRing = new TapRing();
@@ -414,7 +416,7 @@ public class OverlayService extends Service {
                             Prefs.putInt(OverlayService.this, Prefs.K_X, bubbleParams.x);
                             Prefs.putInt(OverlayService.this, Prefs.K_Y, bubbleParams.y);
                             // v1.6: 손을 떼면 대기 상태 투명도로 돌아간다(녹음 중이면 또렷하게 유지)
-                            setBubbleAlpha(mode == MODE_IDLE ? IDLE_ALPHA : ACTIVE_ALPHA);
+                            refreshBubbleAlpha();
                         }
                         return true;
                     default:
@@ -473,6 +475,7 @@ public class OverlayService extends Service {
     private void discardRecording() {
         recording = false;
         mode = MODE_IDLE;
+        converting = false;
         ui.removeCallbacks(tick);
         ui.removeCallbacks(maxStop);
         if (recorder != null) {
@@ -581,8 +584,20 @@ public class OverlayService extends Service {
             bubbleDot.setVisibility(View.GONE);
             animateScale(1f);
         }
-        // v1.6: 대기(A1) 일 때만 살짝 비추고, 녹음·변환 중에는 또렷하게 1.0
-        setBubbleAlpha(m == MODE_IDLE ? IDLE_ALPHA : ACTIVE_ALPHA);
+        // v1.6: 대기(A1) 일 때만 살짝 비추고, 녹음·변환·드래그 중에는 또렷하게 1.0
+        setBubbleAlpha(m == MODE_IDLE
+                ? (isBusy() ? ACTIVE_ALPHA : IDLE_ALPHA)
+                : ACTIVE_ALPHA);
+    }
+
+    /** 지금 뚜렷하게(1.0) 보여야 하는 순간인지: 녹음·변환·드래그 중. */
+    private boolean isBusy() {
+        return converting || dragging || mode != MODE_IDLE;
+    }
+
+    /** 현재 상태에 맞는 투명도로 다시 맞춘다. */
+    private void refreshBubbleAlpha() {
+        setBubbleAlpha(isBusy() ? ACTIVE_ALPHA : IDLE_ALPHA);
     }
 
     /** 동그라미 전체(테두리 포함)의 투명도. */
@@ -737,6 +752,7 @@ public class OverlayService extends Service {
             }
             clearOldTemp(dir);
             sessionGen++;
+            converting = false;
             recFile = new File(dir, (fileMode ? "a1_rec_" : "a1_dictate_") + System.currentTimeMillis() + ".m4a");
 
             recorder = Build.VERSION.SDK_INT >= 31 ? new MediaRecorder(this) : new MediaRecorder();
@@ -1018,6 +1034,9 @@ public class OverlayService extends Service {
 
     private void transcribe(final File file) {
         final int gen = sessionGen;
+        // 변환이 끝날 때까지는 동그라미를 또렷하게(1.0) 유지한다.
+        converting = true;
+        refreshBubbleAlpha();
         // 접근성이 켜져 있으면 결과 팝업 없이 입력칸에 바로 넣는다.
         final boolean direct = A1VoiceAccessibilityService.isEnabled(this);
         if (direct) {
@@ -1048,6 +1067,8 @@ public class OverlayService extends Service {
                             file.delete();
                             return;
                         }
+                        converting = false;
+                        refreshBubbleAlpha();
                         if (out.ok) {
                             // 말한 내용은 이 기기 기록에도 남긴다(서버에는 안 남는다).
                             History.add(app, "플로팅 녹음", History.SRC_FLOAT, recDurationSec, 1, out.text);
