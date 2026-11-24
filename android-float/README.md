@@ -24,16 +24,22 @@
 | 업로드 응답 대기 (`/api/transcribe`) | 120초 | **180초** |
 | 서버 연결(DNS·TCP·TLS) 대기 | 15초 | **20초** |
 | 로그인 응답 대기 | 30초 | **60초** |
-| 한 번 녹음 최대 길이(글자 변환) | 120초(2분) | **300초(5분)** — 16kHz 모노 WAV 약 9.6MB, 서버 24MB·OpenAI 25MB 안쪽 |
+| 한 번 녹음 최대 길이(글자 변환) | 120초(2분) | **120초 그대로** — 서버 요청 본문 4.5MB 한도 때문(110초 3.5MB 통과 · 180초 5.76MB `413` 실측) |
 | 연결이 끊겼을 때 | 오류 | **파일을 다 올리기 전에 끊긴 경우에만 0.4초 뒤 1회 자동 재전송** (다 올린 뒤의 지연은 다시 보내지 않는다 — 같은 녹음을 두 번 결제하지 않게) |
 | 응답 지연 오류 문구 | `네트워크 오류: SocketTimeoutException` | **`서버 응답이 늦어 변환을 마치지 못했어요. 잠시 뒤 다시 한 번 시도해 주세요.`** |
 | OpenAI 잔액·한도 오류 | 서버 영어 원문이 그대로 노출 | **`OpenAI 크레딧이 부족해 변환할 수 없어요. 관리자에게 알려 주세요.`** |
 
 - 5분 상한에 닿으면 v1.8.3과 같이 자동으로 녹음을 끝내고 그대로 변환한다(`maxStop`).
 - 타임아웃 값은 `Transcriber.java` 한 곳(`CONNECT_MS`·`UPLOAD_READ_MS`·`LOGIN_READ_MS`), 녹음 상한은 `OverlayService.MAX_MS` 한 곳에 모아 두었다.
+- **녹음 상한은 왜 120초인가 (v1.9 실측)**: 16kHz 모노 16비트 WAV 는 초당 32KB 라 120초가 약 3.84MB 이고,
+  서버(Vercel 함수)는 **요청 본문 4.5MB**까지만 받는다. 실서버에 올려 보니 110초(3.5MB)는 200,
+  180초(5.76MB)·300초(9.6MB)는 `413 FUNCTION_PAYLOAD_TOO_LARGE` 로 거절됐다. 그래서 5분으로 늘렸던 상한을 되돌렸다.
+  더 길게 받으려면 보낼 때 조각으로 나누는 작업(기존 `AudioChunker` 방식)이 먼저 필요하다 — 후속 과제.
+  같은 이유로 `음성 파일 변환`도 4.5MB(약 6분·64kbps m4a)를 넘는 파일은 413 이 날 수 있다.
 
-### 배포 (2026-11-24 20:42)
-- APK `build/a1-voice-float.apk` (200,942 bytes, sha256 `27fd64d7…8f75fc60e`) → `https://a1kr.com/app/a1-voice.apk` (HTTP 200 · content-length 200,942 · 서버 파일 해시 일치) · `version.json` = **13 / 1.9** 게시 · 내려받은 APK `aapt2 dump badging` 으로 `versionCode 13 / versionName 1.9` 확인
+### 배포 (2026-11-24 20:45)
+- APK `build/a1-voice-float.apk` (200,942 bytes, sha256 `44d6fcae…5c831a04`) → `https://a1kr.com/app/a1-voice.apk` (HTTP 200 · content-length 200,942 · 내려받은 파일 해시 일치) · `version.json` = **13 / 1.9** 게시 · 내려받은 APK `aapt2 dump badging` 으로 `versionCode 13 / versionName 1.9` 확인
+- AAB `archive/a1-voice-float-v1.9-play.aab` (196,023 bytes, `bundletool validate` 통과) — Play 내부 테스트 업로드는 아직 안 함(대표님 결정 대기)
 - 서명: 기존 키 그대로(`keystore/a1voice.jks`, `CN=A1 Voice`) → 위에 덮어 설치 가능
 
 ## v1.8.3 — 마이크 아이콘 · 자유 이동 · 속도 개선 · 탭 규칙 개편 (2026-11-23)

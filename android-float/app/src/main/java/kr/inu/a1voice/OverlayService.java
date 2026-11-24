@@ -85,11 +85,15 @@ public class OverlayService extends Service {
     private static final int NOTI_ID = 101;
 
     /**
-     * 글자 변환(한 번 탭 녹음) 최대 길이 — v1.9: 2분 → 5분.
-     * 15~30초짜리도 아까운데 회의·통화처럼 길게 말할 때 2분에서 끊기지 않게 넉넉히 둔다.
-     * (16kHz 모노 16비트 WAV 로 5분 = 약 9.6MB. 서버 한도 24MB·OpenAI 25MB 안쪽)
+     * 글자 변환(한 번 탭 녹음) 최대 길이 — 120초(2분)를 그대로 둔다.
+     *
+     * v1.9 에서 5분으로 늘렸다가 되돌렸다: 이 앱은 16kHz 모노 16비트 WAV(초당 32KB)를 통째로 올리는데,
+     * 서버(Vercel 함수)는 **요청 본문 4.5MB**까지만 받는다. 실측으로 110초(3.5MB)는 통과,
+     * 180초(5.76MB)·300초(9.6MB)는 `413 FUNCTION_PAYLOAD_TOO_LARGE` 로 거절됐다.
+     * 120초 = 약 3.84MB 로 한도 안쪽인 마지막 안전선이다. 더 길게 받으려면 보낼 때 조각으로 나누는
+     * 작업(기존 AudioChunker 와 같은 방식)이 먼저 필요하다 — 15~30초 문제를 고치는 이번 배포 범위 밖.
      */
-    private static final int MAX_MS = 300000;
+    private static final int MAX_MS = 120000;
     /** 녹음 파일 저장 최대 길이(회의·통화 대비 60분) */
     private static final int FILE_MAX_MS = 60 * 60 * 1000;
     private static final int MIN_MS = 700;
