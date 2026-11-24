@@ -66,6 +66,10 @@ public class MainActivity extends Activity {
     private boolean autoStartTried = false;
     private boolean silentLoginTried = false;
     private boolean loginBusy = false;
+    /** v1.8.2 — 권한 허용 화면에서 돌아오면 약속한 대로 플로팅을 이어서 켜기 위한 표시 */
+    private boolean pendingStart = false;
+    /** 허용 안내 창을 두 번 띄우지 않기 위한 표시 */
+    private boolean overlayDialogOpen = false;
 
     private final int okColor = Color.parseColor("#2E7D32");
     private final int warnColor = Color.parseColor("#C62828");
@@ -220,6 +224,8 @@ public class MainActivity extends Activity {
                 startFloating(false);
             }
         }
+        // v1.8.2 — 방금 허용 화면에서 돌아왔다면, 다시 누르게 하지 않고 이어서 켠다.
+        continuePendingStart();
     }
 
     /* ------------------------------------------------------------------ */
@@ -276,12 +282,21 @@ public class MainActivity extends Activity {
 
         boolean loggedIn = isLoggedIn();
         boolean on = OverlayService.running;
+        boolean overlayOk = Settings.canDrawOverlays(this);
+        boolean micOk = checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED;
         if (loginBusy) {
             btnToggle.setText("로그인 확인 중…");
             btnToggle.setBackgroundResource(R.drawable.bg_btn_off);
         } else if (on) {
             btnToggle.setText("플로팅 끄기");
             btnToggle.setBackgroundResource(R.drawable.bg_btn_off);
+        } else if (loggedIn && !overlayOk) {
+            // v1.8.2 — 이제 버튼 이름이 '무엇을 먼저 할지'를 말한다(설정 화면으로 느닷없이 튕기지 않는다).
+            btnToggle.setText("다른 앱 위에 표시 허용하고 켜기");
+            btnToggle.setBackgroundResource(R.drawable.bg_btn_primary);
+        } else if (loggedIn && !micOk) {
+            btnToggle.setText("마이크 허용하고 켜기");
+            btnToggle.setBackgroundResource(R.drawable.bg_btn_primary);
         } else if (loggedIn) {
             btnToggle.setText("플로팅 켜기");
             btnToggle.setBackgroundResource(R.drawable.bg_btn_primary);
@@ -291,9 +306,15 @@ public class MainActivity extends Activity {
         }
 
         if (on) {
-            tvToggleHint.setText("지금 A1 배지가 떠 있어요. 두 번 톡톡 = 글로 · 길게 꾹 = 끄기 · 알림의 [녹음] = 녹음 파일");
+            tvToggleHint.setText("지금 마이크 배지가 떠 있어요. 1번 탭 = 녹음 시작 · 2번 탭 = 완료 · 길게 = 종료 · 알림의 [녹음] = 녹음 파일");
         } else if (!loggedIn) {
             tvToggleHint.setText("이름과 팀 비밀번호를 넣고 [저장]을 누르면 서버 로그인을 확인한 뒤 켜집니다.");
+        } else if (!overlayOk) {
+            tvToggleHint.setText("준비 상태: 로그인 ✓ · 다른 앱 위에 표시 ✗ · 마이크 " + (micOk ? "✓" : "✗")
+                    + "\n위 버튼을 누르면 허용 화면이 열리고, 돌아오면 자동으로 켜집니다.");
+        } else if (!micOk) {
+            tvToggleHint.setText("준비 상태: 로그인 ✓ · 다른 앱 위에 표시 ✓ · 마이크 ✗"
+                    + "\n위 버튼을 누르면 마이크 허용 창이 뜹니다.");
         } else {
             tvToggleHint.setText("켜 두면 다른 앱을 써도 A1이 화면 위에 떠 있어요.");
         }
@@ -398,6 +419,15 @@ public class MainActivity extends Activity {
     public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
         refresh();
+        boolean granted = grantResults != null && grantResults.length > 0
+                && grantResults[0] == PackageManager.PERMISSION_GRANTED;
+        if (requestCode == REQ_MIC) {
+            if (granted) {
+                continuePendingStart();
+            } else if (pendingStart) {
+                promptMicSettings();
+            }
+        }
     }
 
     /* ------------------------------------------------------------------ */
@@ -470,7 +500,7 @@ public class MainActivity extends Activity {
                         refresh();
                         if (thenStart) {
                             if (isLoggedIn()) {
-                                startFloating(true);
+                                ensurePermissionsThenStart(true);
                             } else {
                                 Toast.makeText(MainActivity.this,
                                         r.offline()
@@ -502,27 +532,16 @@ public class MainActivity extends Activity {
             }, 400);
             return;
         }
-        if (!Settings.canDrawOverlays(this)) {
-            Toast.makeText(this, "먼저 '다른 앱 위에 표시'를 허용해 주세요.", Toast.LENGTH_LONG).show();
-            openOverlaySettings();
-            return;
-        }
-        if (Build.VERSION.SDK_INT >= 23
-                && checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
-            Toast.makeText(this, "먼저 마이크를 허용해 주세요.", Toast.LENGTH_LONG).show();
-            askMic();
-            return;
-        }
         if (loginBusy) {
             Toast.makeText(this, "로그인 확인 중이에요. 잠시만요.", Toast.LENGTH_SHORT).show();
             return;
         }
         if (isLoggedIn()) {
-            startFloating(true);
+            ensurePermissionsThenStart(true);
             return;
         }
 
-        // 로그인 확인 전에는 켜지지 않는다.
+        // 로그인 확인 전에는 켜지지 않는다. 아래는 이름·팀 비번으로 바로 로그인하는 길.
         String name = etName.getText().toString().trim();
         String pass = etPass.getText().toString().trim();
         if (name.isEmpty()) {
@@ -542,6 +561,104 @@ public class MainActivity extends Activity {
         startLogin(name, pass, server, true, true);
     }
 
+    /**
+     * v1.8.2 — 빠진 권한을 한 단계씩 안내하고, 허용되면 곷바로 이어서 켠다.
+     * (예전에는 권한이 빠지면 조용히 설정 화면만 열어서, 누를 때마다 설정 화면으로 돌아가는 것처럼 보였다.)
+     */
+    private void ensurePermissionsThenStart(boolean showToast) {
+        if (loginBusy || isFinishing()) {
+            return;
+        }
+        if (!isLoggedIn()) {
+            Toast.makeText(this, "로그인 확인 후에 플로팅을 켤 수 있어요.", Toast.LENGTH_LONG).show();
+            refresh();
+            return;
+        }
+        if (!Settings.canDrawOverlays(this)) {
+            pendingStart = showToast;
+            promptOverlayPermission();
+            return;
+        }
+        if (Build.VERSION.SDK_INT >= 23
+                && checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+            pendingStart = showToast;
+            askMic();
+            return;
+        }
+        pendingStart = false;
+        startFloating(showToast);
+    }
+
+    /** 허용 화면에서 돌아왔을 때, 다시 누르지 않아도 이어서 켜지게 한다. */
+    private void continuePendingStart() {
+        if (!pendingStart || loginBusy || isFinishing() || OverlayService.running) {
+            return;
+        }
+        if (!isLoggedIn()) {
+            return;
+        }
+        if (!Settings.canDrawOverlays(this)) {
+            refresh();   // 아직 허용 전 — 조용히 기다린다(설정 화면을 다시 열지 않는다)
+            return;
+        }
+        if (Build.VERSION.SDK_INT >= 23
+                && checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+            return;      // 마이크 창의 결과는 onRequestPermissionsResult 가 이어받는다
+        }
+        pendingStart = false;
+        startFloating(true);
+    }
+
+    /** '다른 앱 위에 표시' 안내 — 왜 필요한지, 무엇을 누르면 되는지 보여 주고 그 화면을 연다. */
+    private void promptOverlayPermission() {
+        refresh();
+        if (overlayDialogOpen || isFinishing()) {
+            return;
+        }
+        overlayDialogOpen = true;
+        AlertDialog dlg = new AlertDialog.Builder(this)
+                .setTitle("'다른 앱 위에 표시'가 꺼져 있어요")
+                .setMessage("A1 배지가 다른 앱 화면 위에 떠 있으려면 이 설정이 필요해요.\n\n"
+                        + "다음 화면에서 'A1 음성'을 찾아 켜고 뒤로 오시면, 자동으로 플로팅이 켜집니다.")
+                .setPositiveButton("허용 화면 열기", new DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(DialogInterface d, int which) {
+                        openOverlaySettings();
+                    }
+                })
+                .setNegativeButton("나중에", null)
+                .create();
+        dlg.setOnDismissListener(new DialogInterface.OnDismissListener() {
+            @Override
+            public void onDismiss(DialogInterface d) {
+                overlayDialogOpen = false;
+            }
+        });
+        dlg.show();
+    }
+
+    /** 마이크를 두 번 거부해 창이 다시 안 뜨는 때: 앱 설정에서 직접 켜도록 안내한다. */
+    private void promptMicSettings() {
+        if (isFinishing()) {
+            return;
+        }
+        new AlertDialog.Builder(this)
+                .setTitle("마이크를 허용해야 플로팅이 켜져요")
+                .setMessage("설정 > 앱 > A1 음성 > 권한 > 마이크에서 '허용'으로 바꾸고 뒤로 오시면 자동으로 켜집니다.")
+                .setPositiveButton("앱 설정 열기", new DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(DialogInterface d, int which) {
+                        try {
+                            startActivity(new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                                    Uri.parse("package:" + getPackageName())));
+                        } catch (Exception ignored) {
+                        }
+                    }
+                })
+                .setNegativeButton("나중에", null)
+                .show();
+    }
+
     private void startFloating(final boolean showToast) {
         askStorageLegacy();
         if (!isLoggedIn()) {
@@ -551,20 +668,39 @@ public class MainActivity extends Activity {
         }
         Intent i = new Intent(this, OverlayService.class);
         i.setAction(OverlayService.ACTION_START);
-        if (Build.VERSION.SDK_INT >= 26) {
-            startForegroundService(i);
-        } else {
-            startService(i);
+        OverlayService.lastError = "";
+        try {
+            if (Build.VERSION.SDK_INT >= 26) {
+                startForegroundService(i);
+            } else {
+                startService(i);
+            }
+        } catch (Exception e) {
+            // Android 12+ 백그라운드 제한 등 — 이유를 삼키지 않고 그대로 보여 준다.
+            Toast.makeText(this, "플로팅을 시작하지 못했어요 (" + e.getClass().getSimpleName()
+                    + "). 잠시 뒤 한 번 더 눌러 주세요.", Toast.LENGTH_LONG).show();
+            refresh();
+            return;
         }
+        // v1.8.2 — 켜진 척하지 않는다. 실제로 떴는지 0.9초 뒤에 확인한다.
         ui.postDelayed(new Runnable() {
             @Override
             public void run() {
                 refresh();
+                if (!OverlayService.running) {
+                    String why = OverlayService.lastError;
+                    Toast.makeText(MainActivity.this,
+                            why == null || why.trim().isEmpty()
+                                    ? "플로팅이 켜지지 않았어요. 한 번 더 눌러 주세요."
+                                    : why,
+                            Toast.LENGTH_LONG).show();
+                    return;
+                }
                 if (showToast) {
                     Toast.makeText(MainActivity.this, "A1 동그라미를 띄웠어요. 홈으로 나가도 계속 떠 있습니다.", Toast.LENGTH_LONG).show();
                 }
             }
-        }, 700);
+        }, 900);
     }
 
     /* ------------------------------------------------------------------ */

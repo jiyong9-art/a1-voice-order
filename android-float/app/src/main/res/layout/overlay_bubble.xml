@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  v1.8 플로팅 배지: 반투명 둥근 배지 + A1 글자 + 작은 상태 점.
+  v1.8.3 플로팅 배지: 반투명 둥근 배지 + 마이크 아이콘 + 작은 상태 점.
+  - 기존 'A1' 글자 대신 세련된 스탠드 마이크 아이콘(ic_mic_badge)을 쓴다.
   - 켜짐/대기 = 초록 점, 말하는 중 = 하늘색 점, 글자로 바꾸는 중 = 노랑 점.
   - 최소 크기(58dp)를 유지한다 — 손가락으로 잡기 편하고, 어떤 상태에서도 작아지지 않는다.
 -->
@@ -37,21 +38,13 @@
             android:background="@drawable/bg_bubble_ring"
             android:visibility="gone"/>
 
-        <TextView
+        <ImageView
             android:id="@+id/bubble_logo"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
+            android:layout_width="30dp"
+            android:layout_height="30dp"
             android:layout_gravity="center"
-            android:includeFontPadding="false"
-            android:letterSpacing="0.01"
-            android:text="A1"
-            android:textColor="#FFFFFF"
-            android:textSize="21sp"
-            android:textStyle="bold"
-            android:shadowColor="#66000000"
-            android:shadowDx="0"
-            android:shadowDy="1"
-            android:shadowRadius="2"
+            android:scaleType="fitCenter"
+            android:src="@drawable/ic_mic_badge"
             android:contentDescription="A1 음성"/>
 
         <!-- 상태 점: 초록=켜짐/대기 · 하늘색=말하는 중 · 노랑=변환 중 -->

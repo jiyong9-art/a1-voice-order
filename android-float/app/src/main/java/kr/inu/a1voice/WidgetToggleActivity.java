@@ -76,13 +76,42 @@ public class WidgetToggleActivity extends Activity {
 
         // 3) 켠다. 여기서는 화면이 떠 있으므로 포그라운드 서비스 시작이 허용된다.
         if (FloatToggle.turnOn(this)) {
-            Toast.makeText(this, "A1 플로팅 켜짐", Toast.LENGTH_SHORT).show();
+            verifyStarted(0);
         } else {
             Toast.makeText(this, "플로팅을 켜지 못했어요. 앱에서 다시 시도해 주세요.", Toast.LENGTH_LONG).show();
             openMain();
+            finishSoon();
         }
-        FloatToggle.requestTileRefresh(this);
-        finishSoon();
+    }
+
+    /**
+     * v1.8.2 — 서비스를 부르기만 하고 "켜짐"이라고 말하지 않는다.
+     * 실제로 배지가 떴는지 잠시 지켜보고, 안 떴으면 서비스가 남긴 이유를 그대로 보여 준다.
+     */
+    private void verifyStarted(final int tries) {
+        ui.postDelayed(new Runnable() {
+            @Override
+            public void run() {
+                if (FloatToggle.running()) {
+                    Toast.makeText(WidgetToggleActivity.this, "A1 플로팅 켜짐", Toast.LENGTH_SHORT).show();
+                    FloatToggle.requestTileRefresh(WidgetToggleActivity.this);
+                    finishSoon();
+                    return;
+                }
+                if (tries < 7) {
+                    verifyStarted(tries + 1);
+                    return;
+                }
+                String why = OverlayService.lastError;
+                if (why == null || why.trim().isEmpty()) {
+                    why = "플로팅을 켜지 못했어요. 앱에서 다시 시도해 주세요.";
+                }
+                Toast.makeText(WidgetToggleActivity.this, why, Toast.LENGTH_LONG).show();
+                FloatToggle.requestTileRefresh(WidgetToggleActivity.this);
+                openMain();
+                finishSoon();
+            }
+        }, 180);
     }
 
     private void openMain() {

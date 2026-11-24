@@ -62,10 +62,36 @@ public final class UpdateChecker {
         }
     }
 
+    /** Google Play 로 설치됐는지 (Play 가 서명·업데이트를 맡기는지). */
+    public static boolean installedFromPlay(Context c) {
+        try {
+            if (Build.VERSION.SDK_INT >= 30) {
+                android.content.pm.InstallSourceInfo info =
+                        c.getPackageManager().getInstallSourceInfo(c.getPackageName());
+                return info != null && "com.android.vending".equals(info.getInstallingPackageName());
+            }
+            return "com.android.vending".equals(
+                    c.getPackageManager().getInstallerPackageName(c.getPackageName()));
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
     /** 백그라운드로 확인하고, 새 버전이 있으면 메인 스레드에서 알려 준다. 실패는 조용히 넘긴다. */
     public static void check(final Context ctx, final Listener listener) {
         final Context app = ctx.getApplicationContext();
         final Handler ui = new Handler(Looper.getMainLooper());
+        if (installedFromPlay(app)) {
+            // v1.8.2 — Play 스토어로 깔린 앱은 업데이트를 Play 가 맡는다.
+            // 여기서 직접 받는 APK(서명 키가 다름)를 권하면 설치는 '서명이 다릅니다' 로 실패한다.
+            ui.post(new Runnable() {
+                @Override
+                public void run() {
+                    listener.onUpToDate();
+                }
+            });
+            return;
+        }
         new Thread(new Runnable() {
             @Override
             public void run() {

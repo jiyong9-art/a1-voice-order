@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  v1.8 홈 화면 1×1 위젯: 반투명 둥근 배지 + A1 + 상태 점.
+  v1.8.3 홈 화면 1×1 위젯: 반투명 둥근 배지 + 마이크 아이콘 + 상태 점.
+  - 플로팅 배지와 같은 모습(마이크)이라 한눈에 같은 버튼임을 알 수 있다.
   - 점이 초록이면 플로팅이 켜져 있고, 회색이면 꺼져 있다(한눈에 구분).
 -->
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
@@ -16,17 +17,13 @@
         android:layout_height="match_parent"
         android:background="@drawable/bg_widget_badge">
 
-        <TextView
+        <ImageView
             android:id="@+id/widget_logo"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
+            android:layout_width="26dp"
+            android:layout_height="26dp"
             android:layout_gravity="center"
-            android:includeFontPadding="false"
-            android:letterSpacing="0.01"
-            android:text="A1"
-            android:textColor="#FFFFFF"
-            android:textSize="20sp"
-            android:textStyle="bold"/>
+            android:scaleType="fitCenter"
+            android:src="@drawable/ic_mic_badge"/>
 
         <View
             android:id="@+id/widget_dot_on"

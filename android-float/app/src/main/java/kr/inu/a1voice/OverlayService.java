@@ -29,7 +29,7 @@ import android.os.Vibrator;
 import android.provider.MediaStore;
 import android.provider.Settings;
 import android.util.DisplayMetrics;
-import android.view.GestureDetector;
+import android.util.Log;
 import android.view.Gravity;
 import android.view.LayoutInflater;
 import android.view.MotionEvent;
@@ -39,6 +39,7 @@ import android.view.animation.LinearInterpolator;
 import android.view.animation.DecelerateInterpolator;
 import android.view.inputmethod.InputMethodManager;
 import android.widget.EditText;
+import android.widget.ImageView;
 import android.widget.ProgressBar;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -61,10 +62,10 @@ import android.text.style.ForegroundColorSpan;
 /**
  * 화면 위에 뜨는 A1 배지 + 녹음 + 변환 팝업을 담당하는 포그라운드 서비스.
  *
- *  - 두 번 톡톡  : 음성을 글자로 변환(녹음 시작 / 녹음 중이면 종료)
- *  - 길게 꾹     : 플로팅 끄기 (v1.8 — 5번 연타 대신. 손가락이 아프지 않게)
- *  - 한 번 탭    : 녹음 중이면 종료, 아니면 "두 번 톡톡" 안내
- *  - 길게 끌기   : 위치 이동(테두리에 붙음, 위치 저장). 설정에서 위치 고정 가능
+ *  - 한 번 탭    : 대기 중이면 **즉시 녹음 시작** (v1.8.3 — 더블 탭 대기 없음)
+ *  - 두 번 탭    : 녹음 중이면 **녹음 완료 → 변환·전송** (v1.8.3)
+ *  - 길게 꾹     : 플로팅 종료 (녹음 중이었으면 그 녹음은 버린다)
+ *  - 길게 끌기   : 위치 이동 — 놓은 자리에 그대로 고정(v1.8.3, 끝면 스냅 없음). 설정에서 위치 고정 가능
  *
  * v1.8
  *  - 플로팅은 반투명 둥근 배지 + 작은 상태 점(초록=켜짐·대기, 하늘색=말하는 중, 노랑=변환 중).
@@ -83,14 +84,27 @@ public class OverlayService extends Service {
     private static final String CHANNEL_ID = "a1voice_float";
     private static final int NOTI_ID = 101;
 
-    /** 글자 변환(두 번 톡톡) 최대 길이 */
-    private static final int MAX_MS = 120000;
+    /**
+     * 글자 변환(한 번 탭 녹음) 최대 길이 — v1.9: 2분 → 5분.
+     * 15~30초짜리도 아까운데 회의·통화처럼 길게 말할 때 2분에서 끊기지 않게 넉넉히 둔다.
+     * (16kHz 모노 16비트 WAV 로 5분 = 약 9.6MB. 서버 한도 24MB·OpenAI 25MB 안쪽)
+     */
+    private static final int MAX_MS = 300000;
     /** 녹음 파일 저장 최대 길이(회의·통화 대비 60분) */
     private static final int FILE_MAX_MS = 60 * 60 * 1000;
     private static final int MIN_MS = 700;
 
     /** 길게 꾹 누르기 판정 시간 — v1.8 부터는 이 동작이 '플로팅 끄기'다 */
     private static final long LONG_PRESS_MS = 450;
+
+    /** v1.8.3 녹음 중 '두 번째 탭 = 완료' 인정 시간 (TapRules.DOUBLE_MS 와 같다) */
+    private static final long DOUBLE_TAP_MS = TapRules.DOUBLE_MS;
+
+    /** v1.8.3 실시간 자막 세션은 배지가 먼저 그려진 뒤에 연다(시작이 매끄럽게). */
+    private static final long CAPTION_DELAY_MS = 180;
+
+    /** v1.8.3 반응 시간 계측 로그 태그 — `adb logcat -s A1Voice` */
+    private static final String TAG = "A1Voice";
 
     /** v1.8 실시간 자막에 남겨 두는 최근 글자 수(넘으면 앞을 … 로 접는다) */
     private static final int LIVE_MAX_CHARS = 240;
@@ -111,25 +125,38 @@ public class OverlayService extends Service {
     private static final String REC_DIR_NAME = "A1녹음";
 
     public static volatile boolean running = false;
+    /**
+     * v1.8.2 — 켜지지 못한 이유 한 줄. 앱 화면·위젯이 이 문장을 그대로 보여 준다.
+     * (예전에는 실패해도 조용히 끝나서 "플로팅 켜기"를 눌러도 아무 일이 없었다.)
+     */
+    public static volatile String lastError = "";
 
     private WindowManager wm;
     private View bubbleRoot;
     private View bubbleCircle;
     private View bubbleRing;
     private View bubbleFrame;
-    private TextView bubbleLogo;
     private View bubbleDot;
+    private ImageView bubbleLogo;
     private ValueAnimator pulse;
     private ValueAnimator scaleAnim;
     private TextView bubbleState;
     private WindowManager.LayoutParams bubbleParams;
-    private GestureDetector detector;
     private boolean dragging;
     private int dragStartX;
     private int dragStartY;
     private float downRawX;
     private float downRawY;
     private int touchSlop;
+    /** v1.8.3 — 마이크를 여는 동안(수십 ms). 이 사이의 탭은 무시한다. */
+    private boolean starting;
+    /** v1.8.3 — 녹음 중 첫 탭을 받아 두고 두 번째 탭(완료)을 기다리는 중인지 */
+    private boolean stopTapPending;
+    private long lastStopTapMs;
+    /** v1.8.3 반응 시간 계측 — 배지에서 손을 뗀 시각·마이크가 열린 시각 */
+    private long tapAtMs;
+    /** v1.8.3 마지막 변환에 걸린 시간 표시("1.2초") */
+    private String lastConvertNote = "";
 
     private MediaRecorder recorder;
     /** v1.7 두 번 톡톡(글자 변환)용 PCM 녹음기 — 같은 소리를 실시간 자막에도 흘려보낸다. */
@@ -224,44 +251,47 @@ public class OverlayService extends Service {
     @Override
     public void onCreate() {
         super.onCreate();
-        startForegroundNotice();
+        running = false;
+        lastError = "";
+        // Android 14+ 는 마이크 타입 포그라운드를 "지금 화면에 보이는 앱"에게만 열어 준다.
+        // 열지 못하면 예외를 잡아 이유를 남기고 조용히 끝낸다(예전에는 예외가 튀어 앱이 죽었다).
+        if (!startForegroundNotice()) {
+            return;
+        }
         if (!Settings.canDrawOverlays(this)) {
-            running = false;
-            stopSelf();
+            fail("설정에서 '다른 앱 위에 표시'를 허용해야 플로팅이 떠요.");
             return;
         }
         // 로그인 확인(세션 쿠키) 전에는 동그라미를 띄우지 않는다.
         String cookie = Prefs.get(this, Prefs.K_COOKIE, "");
         if (cookie == null || cookie.trim().isEmpty()) {
-            running = false;
-            Toast.makeText(this, "A1 음성: 먼저 앱에서 로그인해 주세요.", Toast.LENGTH_LONG).show();
-            stopSelf();
+            fail("A1 음성 앱에서 먼저 로그인해 주세요.");
             return;
         }
         running = true;
         wm = (WindowManager) getSystemService(Context.WINDOW_SERVICE);
         touchSlop = dp(10);
-        detector = new GestureDetector(this, new GestureDetector.SimpleOnGestureListener() {
-            @Override
-            public boolean onDown(MotionEvent e) {
-                return true;
-            }
-
-            @Override
-            public boolean onSingleTapConfirmed(MotionEvent e) {
-                onSingleTap();
-                return true;
-            }
-
-            @Override
-            public boolean onDoubleTap(MotionEvent e) {
-                onDoubleTapAction();
-                return true;
-            }
-        });
+        // v1.8.3 — GestureDetector 를 쓰지 않는다. GestureDetector 는 더블 탭을 기다리느라
+        // 싱글 탭을 300ms 뒤에야 알려 주고(onSingleTapConfirmed), 그 300ms 가 곧 반응 지연이었다.
+        // 이제 터치 업(ACTION_UP)에서 바로 판단한다(TapRules).
         showBubble();
+        if (bubbleRoot == null) {
+            // 권한은 있는데 창을 못 올린 경우(제조사 제한 등) — 켜진 척하지 않는다.
+            fail("화면 위에 A1 배지를 올리지 못했어요. 앱을 다시 열어 한 번 더 켜 주세요.");
+            return;
+        }
         // 홈 화면 위젯의 상태 점을 켜짐(초록)으로 맞춘다.
         A1FloatWidgetProvider.updateAll(this);
+    }
+
+    /** 켜지 못한 이유를 남기고 서비스를 끝낸다. 부르는 쪽이 lastError 를 읽어 안내한다. */
+    private void fail(String why) {
+        lastError = why;
+        running = false;
+        try {
+            stopSelf();
+        } catch (Exception ignored) {
+        }
     }
 
     @Override
@@ -317,7 +347,17 @@ public class OverlayService extends Service {
     /* 알림 + 포그라운드                                                     */
     /* ------------------------------------------------------------------ */
 
-    private void startForegroundNotice() {
+    /** 포그라운드 알림을 띄운다. 못 띄우면 이유를 lastError 에 남기고 false. */
+    private boolean startForegroundNotice() {
+        try {
+            return startForegroundNoticeInner();
+        } catch (Exception e) {
+            fail("플로팅을 시작하지 못했어요(" + e.getClass().getSimpleName() + ").");
+            return false;
+        }
+    }
+
+    private boolean startForegroundNoticeInner() {
         NotificationManager nm = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
         if (Build.VERSION.SDK_INT >= 26 && nm != null && nm.getNotificationChannel(CHANNEL_ID) == null) {
             NotificationChannel ch = new NotificationChannel(CHANNEL_ID, "A1 음성 플로팅", NotificationManager.IMPORTANCE_LOW);
@@ -344,7 +384,7 @@ public class OverlayService extends Service {
                 ? new Notification.Builder(this, CHANNEL_ID)
                 : new Notification.Builder(this);
         b.setContentTitle("A1 음성 준비됨")
-                .setContentText("두 번 톡톡 = 말한 것을 글로 · 길게 꾹 = 플로팅 끄기")
+                .setContentText("1번 탭 = 녹음 시작 · 2번 탭 = 완료 · 길게 = 플로팅 종료")
                 .setSmallIcon(R.drawable.ic_stat_mic)
                 .setContentIntent(pi)
                 .setOngoing(true);
@@ -358,12 +398,19 @@ public class OverlayService extends Service {
         if (Build.VERSION.SDK_INT >= 30) {
             try {
                 startForeground(NOTI_ID, b.build(), ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE);
-            } catch (Exception e) {
-                startForeground(NOTI_ID, b.build());
+            } catch (Exception micFail) {
+                // 마이크 타입으로 못 열면(마이크 거부·제한) 타입 없이 다시 시도한다.
+                try {
+                    startForeground(NOTI_ID, b.build());
+                } catch (Exception e) {
+                    fail("플로팅을 화면 위에 띄우려면 마이크를 허용해야 해요.");
+                    return false;
+                }
             }
         } else {
             startForeground(NOTI_ID, b.build());
         }
+        return true;
     }
 
     /* ------------------------------------------------------------------ */
@@ -378,7 +425,7 @@ public class OverlayService extends Service {
         bubbleFrame = bubbleRoot.findViewById(R.id.bubble_frame);
         bubbleCircle = bubbleRoot.findViewById(R.id.bubble_circle);
         bubbleRing = bubbleRoot.findViewById(R.id.bubble_ring);
-        bubbleLogo = (TextView) bubbleRoot.findViewById(R.id.bubble_logo);
+        bubbleLogo = (ImageView) bubbleRoot.findViewById(R.id.bubble_logo);
         bubbleDot = bubbleRoot.findViewById(R.id.bubble_dot);
         bubbleState = (TextView) bubbleRoot.findViewById(R.id.bubble_state);
 
@@ -400,6 +447,7 @@ public class OverlayService extends Service {
             wm.addView(bubbleRoot, bubbleParams);
         } catch (Exception e) {
             bubbleRoot = null;
+            lastError = "화면 위에 A1 배지를 올리지 못했어요(" + e.getClass().getSimpleName() + ").";
             return;
         }
         applyModeVisual(MODE_IDLE);
@@ -411,7 +459,6 @@ public class OverlayService extends Service {
                 }
                 // v1.8 설정에서 '플로팅 위치 고정'을 켜 두면 끌어도 움직이지 않는다.
                 boolean locked = Prefs.getBool(OverlayService.this, Prefs.K_LOCK, false);
-                detector.onTouchEvent(event);
                 switch (event.getActionMasked()) {
                     case MotionEvent.ACTION_DOWN:
                         dragging = false;
@@ -422,14 +469,14 @@ public class OverlayService extends Service {
                         downRawX = event.getRawX();
                         downRawY = event.getRawY();
                         ui.removeCallbacks(longPress);
-                        // 길게 꾹 = 플로팅 끄기 (녹음 중에도 작동한다)
+                        // 길게 꾹 = 플로팅 종료 (녹음 중에도 작동한다)
                         ui.postDelayed(longPress, LONG_PRESS_MS);
                         return true;
                     case MotionEvent.ACTION_MOVE:
                         float dx = event.getRawX() - downRawX;
                         float dy = event.getRawY() - downRawY;
                         if (!dragging && (Math.abs(dx) > touchSlop || Math.abs(dy) > touchSlop)) {
-                            // 움직였으니 길게 누르기(끄기)는 취소 — 이동과 겹치지 않게
+                            // 움직였으니 길게 누르기(종료)는 취소 — 이동과 겹치지 않게
                             ui.removeCallbacks(longPress);
                             if (locked) {
                                 if (!lockNoticeShown) {
@@ -452,13 +499,25 @@ public class OverlayService extends Service {
                         }
                         return true;
                     case MotionEvent.ACTION_UP:
+                        ui.removeCallbacks(longPress);
+                        if (dragging) {
+                            // v1.8.3 — 양 끝 면으로 붙이지 않는다. 손을 뗀 그 자리에 그대로 둔다.
+                            // (화면 밖으로만 나가지 않게 clampBubble 이 경계만 잡아 준다)
+                            dragging = false;
+                            clampBubble();
+                            saveBubblePosition();
+                        } else if (!longPressFired) {
+                            // v1.8.3 — 터치 업 즉시 판단한다(더블 탭을 기다리지 않는다).
+                            tapAtMs = SystemClock.elapsedRealtime();
+                            onTap();
+                        }
+                        return true;
                     case MotionEvent.ACTION_CANCEL:
                         ui.removeCallbacks(longPress);
                         if (dragging) {
                             dragging = false;
-                            snapToEdge();
-                            Prefs.putInt(OverlayService.this, Prefs.K_X, bubbleParams.x);
-                            Prefs.putInt(OverlayService.this, Prefs.K_Y, bubbleParams.y);
+                            clampBubble();
+                            saveBubblePosition();
                         }
                         return true;
                     default:
@@ -468,23 +527,23 @@ public class OverlayService extends Service {
         });
     }
 
-    private void clampBubble() {
-        int w = bubbleRoot == null ? dp(58) : Math.max(bubbleRoot.getWidth(), dp(58));
-        int maxX = Math.max(0, screenW() - w - dp(6));
-        int maxY = Math.max(0, screenH() - w - dp(6));
-        bubbleParams.x = Math.max(dp(4), Math.min(bubbleParams.x, maxX));
-        bubbleParams.y = Math.max(0, Math.min(bubbleParams.y, maxY));
+    /** 놓은 자리를 그대로 저장한다(다음에 켜도 같은 자리). */
+    private void saveBubblePosition() {
+        Prefs.putInt(OverlayService.this, Prefs.K_X, bubbleParams.x);
+        Prefs.putInt(OverlayService.this, Prefs.K_Y, bubbleParams.y);
     }
 
-    private void snapToEdge() {
+    /**
+     * v1.8.3 — 화면 경계만 잡는다.
+     * 배지는 '가장자리에 붙지 않고' 사용자가 놓은 자리에 그대로 남는다(끝면 스냅 없음).
+     * 창 크기(측정 전이면 58dp)를 빼서 배지가 화면 밖으로 나가지 않게 할 뿐이다.
+     */
+    private void clampBubble() {
         int w = bubbleRoot == null ? dp(58) : Math.max(bubbleRoot.getWidth(), dp(58));
-        int center = bubbleParams.x + w / 2;
-        bubbleParams.x = center < screenW() / 2 ? dp(6) : screenW() - w - dp(6);
-        clampBubble();
-        try {
-            wm.updateViewLayout(bubbleRoot, bubbleParams);
-        } catch (Exception ignored) {
-        }
+        int maxX = Math.max(dp(4), screenW() - w - dp(4));
+        int maxY = Math.max(0, screenH() - w - dp(8));
+        bubbleParams.x = Math.max(dp(4), Math.min(bubbleParams.x, maxX));
+        bubbleParams.y = Math.max(0, Math.min(bubbleParams.y, maxY));
     }
 
     /**
@@ -509,11 +568,15 @@ public class OverlayService extends Service {
 
     /** 녹음 중이면 파일만 지우고(전송·저장 안 함) 조용히 정리한다. */
     private void discardRecording() {
+        sessionGen++;          // 진행 중이던 시작·변환이 화면을 건드리지 못하게
+        starting = false;
+        stopTapPending = false;
         recording = false;
         mode = MODE_IDLE;
         converting = false;
         ui.removeCallbacks(tick);
         ui.removeCallbacks(maxStop);
+        ui.removeCallbacks(stopHint);
         PcmRecorder p = pcm;
         pcm = null;
         if (p != null) {
@@ -546,36 +609,58 @@ public class OverlayService extends Service {
         }
     }
 
-    private void onSingleTap() {
+    /**
+     * v1.8.3 조작 규칙 (판단은 {@link TapRules}).
+     *
+     *  - 대기 중 1번 탭      → 즉시 녹음 시작 (터치 업 그대로 — 더블 탭 대기 300ms 없음)
+     *  - 녹음 중 2번 탭      → 녹음 완료 → 변환·전송
+     *  - 녹음 중 1번 탭      → 340ms 기다렸다가 두 번째 탭이 없으면 '한 번 더' 안내
+     *  - 녹음 파일 저장 중 1번 탭 → 저장하고 끝
+     */
+    private void onTap() {
         if (quitting) {
             return;
         }
-        if (mode == MODE_FILE) {
-            stopFileRecording();
-            return;
+        if (starting) {
+            return;     // 마이크를 여는 중 — 바로 이어진다
         }
-        if (mode == MODE_DICTATE) {
-            stopDictation();
-            return;
+        boolean recording = mode == MODE_DICTATE || mode == MODE_FILE;
+        int action = TapRules.onTap(recording, mode == MODE_FILE, tapAtMs, lastStopTapMs, stopTapPending);
+        switch (action) {
+            case TapRules.FINISH:
+                ui.removeCallbacks(stopHint);
+                stopTapPending = false;
+                stopDictation();
+                return;
+            case TapRules.STOP_FILE:
+                stopTapPending = false;
+                stopFileRecording();
+                return;
+            case TapRules.WAIT:
+                lastStopTapMs = tapAtMs;
+                stopTapPending = true;
+                vibrate(8);
+                ui.removeCallbacks(stopHint);
+                ui.postDelayed(stopHint, DOUBLE_TAP_MS);
+                return;
+            case TapRules.START:
+            default:
+                stopTapPending = false;
+                beginDictation();
         }
-        showState("두 번 톡톡!", 1200);
-        vibrate(12);
     }
 
-    private void onDoubleTapAction() {
-        if (quitting) {
-            return;
+    /** 녹음 중 한 번만 탭했을 때의 안내 — 두 번째 탭이 오면 취소되고 바로 완료된다. */
+    private final Runnable stopHint = new Runnable() {
+        @Override
+        public void run() {
+            if (!stopTapPending || quitting) {
+                return;
+            }
+            stopTapPending = false;
+            Toast.makeText(OverlayService.this, "한 번 더 탭하면 녹음이 끝나요", Toast.LENGTH_SHORT).show();
         }
-        if (mode == MODE_FILE) {
-            stopFileRecording();
-            return;
-        }
-        if (mode == MODE_DICTATE) {
-            stopDictation();
-            return;
-        }
-        beginDictation();
-    }
+    };
 
     private void showState(String text, long hideAfterMs) {
         if (bubbleState == null) {
@@ -769,7 +854,7 @@ public class OverlayService extends Service {
                             if (recFile != null) {
                                 recFile.delete();
                             }
-                            showState("입력했어요 ✓", 1800);
+                            showState("입력했어요 ✓" + (lastConvertNote.isEmpty() ? "" : " " + lastConvertNote), 1800);
                             Toast.makeText(OverlayService.this, "입력했어요", Toast.LENGTH_SHORT).show();
                         } else {
                             setResult(text);
@@ -784,81 +869,120 @@ public class OverlayService extends Service {
     /* 글자 변환 녹음 (두 번 톡톡)                                            */
     /* ------------------------------------------------------------------ */
 
-    /** 두 번 톡톡: 화면 표시·진동을 먼저 하고 마이크를 연다(체감 반응 속도). */
+    /**
+     * v1.8.3 — 녹음 시작 (한 번 탭).
+     *
+     * 예전(v1.8.2 까지)에는 이 메서드가 메인 스레드에서
+     * ① 캐시 폴더 정리(listFiles) ② AudioRecord 생성(오디오 HAL 열기) ③ startRecording()
+     * ④ WAV 파일 생성·헤더 쓰기 를 차례로 하고 나서야 화면으로 돌아왔다.
+     * 그래서 배지 모양·타이머가 그 시간(제조사에 따라 80~300ms)만큼 늦게 그려져
+     * "탭했는데 반 박자 늦게 시작"으로 느껴졌다.
+     *
+     * 이제는 화면(배지·상태 점·타이머·진동·서버 연결 준비)을 **먼저** 처리하고
+     * 마이크는 백그라운드에서 연다 — 탭 즉시 반응하고, 은 소리도 놓치지 않는다.
+     */
     private void beginDictation() {
+        if (quitting || starting) {
+            return;
+        }
         if (checkSelfPermission(android.Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
             showMessage("마이크 권한 필요", "A1 음성 앱을 열어 마이크를 허용해 주세요.");
             return;
         }
+        sessionGen++;
+        final int gen = sessionGen;
+        final long tapMs = tapAtMs > 0 ? tapAtMs : SystemClock.elapsedRealtime();
+        starting = true;
+        converting = false;
+        mode = MODE_DICTATE;
+        recording = true;
+        recStartMs = tapMs;
+        lastConvertNote = "";
+
+        // 1) 화면부터 — 이 순서가 '0ms 체감 지연'의 핵심이다.
         vibrate(15);
         applyModeVisual(MODE_DICTATE);
-        if (!startDictationRecording()) {
-            applyModeVisual(MODE_IDLE);
-            if (bubbleState != null) {
-                bubbleState.setVisibility(View.GONE);
+        setTimerText(0);
+        bubbleState.setVisibility(View.VISIBLE);
+        ui.removeCallbacks(tick);
+        ui.post(tick);
+        ui.removeCallbacks(maxStop);
+        ui.postDelayed(maxStop, MAX_MS);
+
+        // 2) 마이크·파일은 백그라운드에서 (메인 스레드를 잡지 않는다)
+        io.execute(new Runnable() {
+            @Override
+            public void run() {
+                final long t0 = SystemClock.elapsedRealtime();
+                File dir = new File(getCacheDir(), "rec");
+                if (!dir.exists()) {
+                    dir.mkdirs();
+                }
+                clearOldTemp(dir);
+                final File file = new File(dir, "a1_dictate_" + System.currentTimeMillis() + ".wav");
+                final PcmRecorder p = new PcmRecorder();
+                final boolean ok = p.start(file, new PcmRecorder.ChunkListener() {
+                    @Override
+                    public void onChunk(byte[] data, int length) {
+                        LiveCaption c = caption;
+                        if (c != null) {
+                            c.feed(data, length);
+                        }
+                    }
+                });
+                final long took = SystemClock.elapsedRealtime() - t0;
+                ui.post(new Runnable() {
+                    @Override
+                    public void run() {
+                        starting = false;
+                        Log.i(TAG, "start: tap→mic " + (SystemClock.elapsedRealtime() - tapMs)
+                                + "ms (마이크 열기 " + took + "ms)");
+                        if (gen != sessionGen || quitting) {
+                            p.stop();
+                            file.delete();
+                            return;
+                        }
+                        if (!ok) {
+                            recording = false;
+                            mode = MODE_IDLE;
+                            applyModeVisual(MODE_IDLE);
+                            ui.removeCallbacks(tick);
+                            ui.removeCallbacks(maxStop);
+                            if (bubbleState != null) {
+                                bubbleState.setVisibility(View.GONE);
+                            }
+                            file.delete();
+                            String why = p.lastError();
+                            showMessage("녹음 시작 실패",
+                                    why == null || why.isEmpty() ? "마이크를 열지 못했습니다." : why);
+                            return;
+                        }
+                        pcm = p;
+                        recFile = file;
+                        // 3) 말하는 동안 서버 연결(DNS·TLS)을 미리 열어 둔다 — 변환 때 기다리지 않게
+                        Transcriber.warmUp(Prefs.get(OverlayService.this, Prefs.K_SERVER, Prefs.DEFAULT_SERVER));
+                        startLiveCaptionSoon();
+                    }
+                });
             }
-        }
+        });
     }
 
     /**
-     * v1.7 글자 변환 녹음: 소리는 AudioRecord(PCM→WAV) 한 줄로만 받고,
-     * 같은 조각을 실시간 자막에도 흘려보낸다(마이크를 둘이 나눠 쓰지 않는다).
+     * v1.8.3 — 실시간 자막 세션은 배지가 먼저 그려진 뒤에 연다.
+     * SpeechRecognizer.createSpeechRecognizer()/startListening() 은 메인 스레드에서
+     * 수십~수백 ms 걸릴 수 있어, 녹음이 시작되는 순간에 부르면 시작이 끊겨 보인다.
      */
-    private boolean startDictationRecording() {
-        try {
-            File dir = new File(getCacheDir(), "rec");
-            if (!dir.exists()) {
-                dir.mkdirs();
-            }
-            clearOldTemp(dir);
-            sessionGen++;
-            converting = false;
-            recFile = new File(dir, "a1_dictate_" + System.currentTimeMillis() + ".wav");
-
-            pcm = new PcmRecorder();
-            final boolean ok = pcm.start(recFile, new PcmRecorder.ChunkListener() {
-                @Override
-                public void onChunk(byte[] data, int length) {
-                    LiveCaption c = caption;
-                    if (c != null) {
-                        c.feed(data, length);
-                    }
+    private void startLiveCaptionSoon() {
+        ui.postDelayed(new Runnable() {
+            @Override
+            public void run() {
+                if (quitting || !recording || mode != MODE_DICTATE) {
+                    return;
                 }
-            });
-            if (!ok) {
-                String why = pcm == null ? null : pcm.lastError();
-                pcm = null;
-                if (recFile != null) {
-                    recFile.delete();
-                    recFile = null;
-                }
-                showMessage("녹음 시작 실패",
-                        why == null || why.isEmpty() ? "마이크를 열지 못했습니다." : why);
-                return false;
+                startLiveCaption();
             }
-
-            mode = MODE_DICTATE;
-            recording = true;
-            recStartMs = SystemClock.elapsedRealtime();
-            setTimerText(0);
-            ui.post(tick);
-            ui.removeCallbacks(maxStop);
-            ui.postDelayed(maxStop, MAX_MS);
-            startLiveCaption();
-            return true;
-        } catch (Exception e) {
-            if (pcm != null) {
-                pcm.stop();
-                pcm = null;
-            }
-            recording = false;
-            mode = MODE_IDLE;
-            if (recFile != null) {
-                recFile.delete();
-            }
-            showMessage("녹음 시작 실패", readable(e));
-            return false;
-        }
+        }, CAPTION_DELAY_MS);
     }
 
     /* ------------------------------------------------------------------ */
@@ -1080,48 +1204,88 @@ public class OverlayService extends Service {
         }
     }
 
+    /**
+     * v1.8.3 — 두 번째 탭 = 녹음 완료.
+     *
+     * 예전에는 마이크 닫기(p.stop() — 내부에서 최대 800ms join)와 WAV 마무리를
+     * 메인 스레드에서 해서, 손을 떼고도 화면이 잠시 멈췄고 업로드 시작도 그만큼 늦었다.
+     * 이제 마무리는 백그라운드에서 하고, 끝나는 즉시 변환을 보낸다.
+     */
     private void stopDictation() {
-        if (mode != MODE_DICTATE) {
+        if (mode != MODE_DICTATE || starting) {
             return;
         }
         recording = false;
         mode = MODE_IDLE;
         ui.removeCallbacks(tick);
         ui.removeCallbacks(maxStop);
-        long dur = SystemClock.elapsedRealtime() - recStartMs;
-
-        PcmRecorder p = pcm;
+        ui.removeCallbacks(stopHint);
+        stopTapPending = false;
+        final long dur = SystemClock.elapsedRealtime() - recStartMs;
+        final int gen = sessionGen;
+        final PcmRecorder p = pcm;
         pcm = null;
-        if (p != null) {
-            p.stop();   // WAV 헤더에 실제 길이를 채워 파일을 닫는다
-        }
-        boolean silent = p != null && !p.heardSpeech();
+        final File file = recFile;
         stopLiveCaption();   // 말이 끝났으니 자막 창을 닫는다(정확한 글자는 곧 OpenAI 결과로 대체)
         applyModeVisual(MODE_IDLE);
         vibrate(25);
-
-        if (dur < MIN_MS || recFile == null || !recFile.exists() || recFile.length() < 2000) {
-            bubbleState.setVisibility(View.GONE);
-            if (recFile != null) {
-                recFile.delete();
-            }
-            showMessage("녹음이 너무 짧아요", "A1을 두 번 톡톡 누른 뒤 또박또박 말씀해 주세요.");
-            return;
+        if (bubbleState != null) {
+            bubbleState.setText("변환 준비…");
+            bubbleState.setVisibility(View.VISIBLE);
         }
-        // v1.8 무음 게이트: 말소리가 없으면 서버로 보내지 않는다(Whisper 빈칸 환각 방지).
-        if (silent) {
-            bubbleState.setVisibility(View.GONE);
-            if (recFile != null) {
-                recFile.delete();
-                recFile = null;
-            }
-            showState("말소리 없음", 1400);
-            Toast.makeText(this, "말소리가 없어요. 다시 말씀해 주세요.", Toast.LENGTH_SHORT).show();
-            return;
-        }
-        bubbleState.setText("변환 준비…");
         recDurationSec = (int) (dur / 1000);
-        transcribe(recFile);
+
+        io.execute(new Runnable() {
+            @Override
+            public void run() {
+                final long a = SystemClock.elapsedRealtime();
+                if (p != null) {
+                    p.stop();   // WAV 헤더에 실제 길이를 채우고 마이크를 닫는다(백그라운드)
+                }
+                final boolean silent = p != null && !p.heardSpeech();
+                final long closeMs = SystemClock.elapsedRealtime() - a;
+                Log.i(TAG, "stop: mic close " + closeMs + "ms");
+                ui.post(new Runnable() {
+                    @Override
+                    public void run() {
+                        if (gen != sessionGen || quitting) {
+                            if (file != null) {
+                                file.delete();
+                            }
+                            return;
+                        }
+                        if (dur < MIN_MS || file == null || !file.exists() || file.length() < 2000) {
+                            if (bubbleState != null) {
+                                bubbleState.setVisibility(View.GONE);
+                            }
+                            if (file != null) {
+                                file.delete();
+                                recFile = null;
+                            }
+                            showMessage("녹음이 너무 짧아요",
+                                    "한 번 탭해 말하고, 다 말한 뒤 두 번 탭해 주세요.");
+                            return;
+                        }
+                        // v1.8 무음 게이트: 말소리가 없으면 서버로 보내지 않는다(Whisper 빈칸 환각 방지).
+                        if (silent) {
+                            if (bubbleState != null) {
+                                bubbleState.setVisibility(View.GONE);
+                            }
+                            file.delete();
+                            recFile = null;
+                            showState("말소리 없음", 1400);
+                            Toast.makeText(OverlayService.this,
+                                    "말소리가 없어요. 다시 말씀해 주세요.", Toast.LENGTH_SHORT).show();
+                            return;
+                        }
+                        if (bubbleState != null) {
+                            bubbleState.setText("변환 준비…");
+                        }
+                        transcribe(file);
+                    }
+                });
+            }
+        });
     }
 
     /* ------------------------------------------------------------------ */
@@ -1356,15 +1520,20 @@ public class OverlayService extends Service {
         final String pass = Prefs.get(this, Prefs.K_PASS, "");
         final String server = Prefs.get(this, Prefs.K_SERVER, Prefs.DEFAULT_SERVER);
         final Context app = getApplicationContext();
+        final long sendAt = SystemClock.elapsedRealtime();
+        final long bytes = file.length();
         io.execute(new Runnable() {
             @Override
             public void run() {
-                // 4연타로 종료됐거나 새 녹음이 시작됐으면 서버로 보내지 않는다.
+                // 종료됐거나 새 녹음이 시작됐으면 서버로 보내지 않는다.
                 if (gen != sessionGen || quitting) {
                     file.delete();
                     return;
                 }
                 final Transcriber.Out out = Transcriber.transcribe(app, file, name, pass, server);
+                final long netMs = SystemClock.elapsedRealtime() - sendAt;
+                Log.i(TAG, "convert: " + (bytes / 1024) + "KB · 요청 " + netMs + "ms"
+                        + " · tap→결과 " + (SystemClock.elapsedRealtime() - (tapAtMs > 0 ? tapAtMs : sendAt)) + "ms");
                 ui.post(new Runnable() {
                     @Override
                     public void run() {
@@ -1387,13 +1556,21 @@ public class OverlayService extends Service {
                             Toast.makeText(OverlayService.this,
                                     "말소리가 없어요. 다시 말씀해 주세요.", Toast.LENGTH_SHORT).show();
                         } else if (out.ok) {
-                            // 말한 내용은 이 기기 기록에도 남긴다(서버에는 안 남는다).
-                            History.add(app, "플로팅 녹음", History.SRC_FLOAT, recDurationSec, 1, out.text);
-                            copyToClipboard(out.text);
+                            // v1.8.3 — 이제 '받은 순간' 화면에 넣는다. 기록(JSON) 쓰기는 백그라운드로.
+                            lastConvertNote = String.format(Locale.US, "%.1f초", netMs / 1000.0);
+                            final String done = out.text;
+                            final int durSec = recDurationSec;
+                            io.execute(new Runnable() {
+                                @Override
+                                public void run() {
+                                    History.add(app, "플로팅 녹음", History.SRC_FLOAT, durSec, 1, done);
+                                }
+                            });
+                            copyToClipboard(done);
                             if (direct) {
-                                insertDirect(out.text);
+                                insertDirect(done);
                             } else {
-                                setResult(out.text);
+                                setResult(done);
                             }
                         } else {
                             setError(out.error);
@@ -1553,7 +1730,9 @@ public class OverlayService extends Service {
         }
         // v1.7 슬림 팝업: 제목줄 없이 텍스트 상자 + [복사] [닫기] 만 남긴다.
         popupTitle.setVisibility(View.GONE);
-        popupMsg.setText("클립보드에 복사했어요 · 고쳐서 다시 복사");
+        popupMsg.setText("클립보드에 복사했어요"
+                + (lastConvertNote.isEmpty() ? "" : " · " + lastConvertNote)
+                + " · 고쳐서 다시 복사");
         popupProgress.setVisibility(View.GONE);
         popupEdit.setVisibility(View.VISIBLE);
         popupEdit.setText(text);

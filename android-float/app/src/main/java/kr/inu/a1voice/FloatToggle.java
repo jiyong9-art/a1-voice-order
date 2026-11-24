@@ -41,7 +41,7 @@ final class FloatToggle {
             return "A1 음성 앱에서 먼저 로그인해 주세요.";
         }
         if (!Settings.canDrawOverlays(c)) {
-            return "설정에서 '다른 앱 위에 표시'를 허용해 주세요.";
+            return "설정에서 '다른 앱 위에 표시'를 허용해야 플로팅이 떠요.";
         }
         if (Build.VERSION.SDK_INT >= 23
                 && c.checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
@@ -52,6 +52,7 @@ final class FloatToggle {
 
     /** 화면(Activity)이 떠 있는 동안 부른다. 성공하면 true. */
     static boolean turnOn(Context c) {
+        OverlayService.lastError = "";
         Intent i = new Intent(c, OverlayService.class);
         i.setAction(OverlayService.ACTION_START);
         try {
